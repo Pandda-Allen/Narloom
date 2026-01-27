@@ -34,20 +34,5 @@ def register_blueprints(app):
     from api.routes.login import login_bp
     from api.routes.user_profile import user_profile_bp
 
-    # 使用配置文件中的API前缀
-    api_prefix = app.config['API_PREFIX']
-
-    app.register_blueprint(login_bp, url_prefix=f'{api_prefix}/login')
-    app.register_blueprint(user_profile_bp, url_prefix=f'{api_prefix}/user_profile')
-
-
-
-# app = create_app()
-
-# if __name__ == '__main__':
-#     port = int(os.getenv('PORT', 5000))
-#     app.run(
-#         host='0.0.0.0',
-#         port=port,
-#         debug=app.config['DEBUG']
-#     )
+    app.register_blueprint(login_bp, url_prefix=f'/')
+    app.register_blueprint(user_profile_bp, url_prefix=f'/user_profile')
