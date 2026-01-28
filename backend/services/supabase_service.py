@@ -63,6 +63,22 @@ class SupabaseService:
         else:
             print("Supabase URL or Key not provided. Please check your configuration.")
 
+    def client_login(self, email: str, password: str):
+        """User login using Supabase auth"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.auth.sign_in_with_password({
+                'email': email,
+                'password': password
+            })
+            return response
+        except Exception as e:
+            raise e
+
     @property
     def client(self) -> Optional[Client]:
         """Get the Supabase client"""

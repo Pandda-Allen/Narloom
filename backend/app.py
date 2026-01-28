@@ -33,12 +33,14 @@ def init_supabase(app):
 def register_blueprints(app):
     from api.routes.login import login_bp
     from api.routes.user_profile import user_profile_bp
+    # from api.routes.ai import ai_bp
 
     # 使用配置文件中的API前缀
     api_prefix = app.config['API_PREFIX']
 
-    app.register_blueprint(login_bp, url_prefix=f'{api_prefix}/login')
-    app.register_blueprint(user_profile_bp, url_prefix=f'{api_prefix}/user_profile')
+    app.register_blueprint(login_bp, url_prefix='/login')
+    app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
+    # app.register_blueprint(ai_bp, url_prefix='/ai')
 
 
 
