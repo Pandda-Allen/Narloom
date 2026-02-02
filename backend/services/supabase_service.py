@@ -78,6 +78,45 @@ class SupabaseService:
             return response
         except Exception as e:
             raise e
+        
+    def asset_insert(self, asset_data, asset_type):
+        """Insert an asset into Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            if asset_type == 'character':
+                response = self._client.table('character_asset').insert(asset_data).execute()
+            elif asset_type == 'world':
+                response = self._client.table('world_asset').insert(asset_data).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def asset_fetch(self, asset_type, user_id):
+        """Fetch assets from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            if asset_type == 'character':
+                response = self._client.table('character_asset').select('*').eq('user_id', user_id).execute()
+            elif asset_type == 'world':
+                response = self._client.table('world_asset').select('*').eq('user_id', user_id).execute()
+            else:
+                character_response = self._client.table('character_asset').select('*').eq('user_id', user_id).execute()
+                world_response = self._client.table('world_asset').select('*').eq('user_id', user_id).execute()
+                response = {
+                    'character': character_response,
+                    'world': world_response
+                }
+            return response
+        except Exception as e:
+            raise e
 
     @property
     def client(self) -> Optional[Client]:

@@ -10,19 +10,55 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key')
     DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-    # Supabase 配置
-    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
-    SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
-    
     # API 配置
     API_PREFIX = 'http://120.26.103.23'
 
-    # AI模型配置
-    AI_MODEL_TYPE = os.getenv('AI_MODEL_TYPE', 'openai') #可选： openai，claude，local
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-    OPENAI_BASE_URL = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
-    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+    # Supabase 配置
+    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+    SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
 
+    # DeepSeek配置
+    DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+    DEEPSEEK_API_BASE = os.getenv('DEEPSEEK_API_BASE', 'https://api.deepseek.com')
+    DEEPSEEK_DEFAULT_MODEL = os.getenv('DEEPSEEK_DEFAULT_MODEL', 'deepseek-chat')
+
+    # OpenRouter配置
+    # OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
+    # OPENROUTER_DEFAULT_MODEL = os.getenv('OPENROUTER_DEFAULT_MODEL', 'openai/gpt-3.5-turbo')
+    
+    # AI服务配置
+    AI_MAX_TOKENS = int(os.getenv('AI_MAX_TOKENS', 2000))
+    AI_TEMPERATURE = float(os.getenv('AI_TEMPERATURE', 0.7))
+    AI_REQUEST_TIMEOUT = int(os.getenv('AI_REQUEST_TIMEOUT', 30))
+    
+    # 会话配置
+    SESSION_TIMEOUT = timedelta(hours=2)
+    
+    # 文件上传配置
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+    
+    # CORS配置
+    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
+    
+    # 速率限制
+    RATELIMIT_DEFAULT = "100 per minute"
+
+    # DeepSeek特定配置
+    DEEPSEEK_MODELS = {
+        'deepseek-chat': {
+            'name': 'DeepSeek Chat',
+            'description': '通用聊天模型',
+            'max_tokens': 4096,
+            'context_length': 8192
+        },
+        'deepseek-coder': {
+            'name': 'DeepSeek Coder',
+            'description': '代码生成和编程助手',
+            'max_tokens': 4096,
+            'context_length': 8192
+        }
+    }
     @staticmethod
     def init_app(app):
         """初始化应用配置"""
