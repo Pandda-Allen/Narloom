@@ -60,4 +60,4 @@ def register_blueprints(app):
     app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
     app.register_blueprint(asset_bp, url_prefix='/asset')
     app.register_blueprint(work_bp, url_prefix='/work')
-    app.register_blueprint(ai_bp, url_prefix='/ai')
+    app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
