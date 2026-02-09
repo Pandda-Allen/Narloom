@@ -95,8 +95,8 @@ class SupabaseService:
         except Exception as e:
             raise e
 
-    def asset_fetch(self, asset_type, user_id):
-        """Fetch assets from Supabase"""
+    def asset_update(self, asset_id, asset_data, asset_type):
+        """Update an asset in Supabase"""
         if not self._client:
             self._initialize()
         if not self._client:
@@ -104,16 +104,52 @@ class SupabaseService:
         
         try:
             if asset_type == 'character':
-                response = self._client.table('character_asset').select('*').eq('user_id', user_id).execute()
+                response = self._client.table('character_asset').update(asset_data).eq('asset_id', asset_id).execute()
             elif asset_type == 'world':
-                response = self._client.table('world_asset').select('*').eq('user_id', user_id).execute()
+                response = self._client.table('world_asset').update(asset_data).eq('asset_id', asset_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def asset_fetch_by_id(self, asset_id, asset_type):
+        """Fetch an asset by ID from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            if asset_type == 'character':
+                response = self._client.table('character_asset').select('*').eq('asset_id', asset_id).execute()
+            elif asset_type == 'world':
+                response = self._client.table('world_asset').select('*').eq('asset_id', asset_id).execute()
+            return response
+        except Exception as e:
+            raise e
+        
+    def asset_fetch_all(self, asset_type=None, user_id=None, limit=100, offset=0):
+        """Fetch all assets from Supabase, with optional filtering"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            if asset_type == 'character':
+                query = self._client.table('character_asset').select('*').eq('user_id', user_id)
+            elif asset_type == 'world':
+                query = self._client.table('world_asset').select('*').eq('user_id', user_id)
             else:
-                character_response = self._client.table('character_asset').select('*').eq('user_id', user_id).execute()
-                world_response = self._client.table('world_asset').select('*').eq('user_id', user_id).execute()
-                response = {
-                    'character': character_response,
-                    'world': world_response
-                }
+                # 如果没有指定类型，则获取所有类型的资产
+                char_query = self._client.table('character_asset').select('*').eq('user_id', user_id)
+                world_query = self._client.table('world_asset').select('*').eq('user_id', user_id)
+                char_response = char_query.execute()
+                world_response = world_query.execute()
+                combined_data = char_response.data + world_response.data
+                return {'data': combined_data}
+
+            query = query.limit(limit).offset(offset)
+            response = query.execute()
             return response
         except Exception as e:
             raise e
