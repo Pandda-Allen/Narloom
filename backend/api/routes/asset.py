@@ -249,12 +249,19 @@ def get_all_assets():
     except Exception as e:
         return error_response(f'Error retrieving assets: {str(e)}', 500)
 
-@asset_bp.route('/<asset_id>', methods=['DELETE'])
-def delete_asset(asset_id):
+@asset_bp.route('/delete', methods=['POST'])
+def delete_asset():
     """删除asset"""
     try:
         # 获取asset类型（可选）
         asset_type = request.args.get('type')
+        asset_id = request.args.get('asset_id')
+        
+        if asset_type not in ['character', 'world']:
+            return error_response('Invalid asset type. Must be "character" or "world"', 400)
+        
+        if not asset_id:
+            return error_response('Asset ID is required for deletion', 400)
         
         response = SupabaseService().asset_delete(asset_id, asset_type)
         

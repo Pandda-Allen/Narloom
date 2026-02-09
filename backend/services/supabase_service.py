@@ -154,6 +154,24 @@ class SupabaseService:
         except Exception as e:
             raise e
 
+    def asset_delete(self, asset_id, asset_type):
+        """Delete an asset from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            if asset_type == 'character':
+                response = self._client.table('character_asset').delete().eq('asset_id', asset_id).execute()
+            elif asset_type == 'world':
+                response = self._client.table('world_asset').delete().eq('asset_id', asset_id).execute()
+            else:
+                raise ValueError("Invalid asset type specified for deletion.")
+            return response
+        except Exception as e:
+            raise e
+
     @property
     def client(self) -> Optional[Client]:
         """Get the Supabase client"""
