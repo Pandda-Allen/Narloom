@@ -3,3 +3,5 @@ openai
 supabase
 realtime
 python-dotenv
+python-dateutil
+uuid

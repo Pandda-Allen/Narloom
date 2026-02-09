@@ -30,9 +30,31 @@ def init_supabase(app):
     else:
         app.logger.error("Failed to initialize Supabase client.")
 
+def init_ai_service(app):
+    """初始化AIService"""
+    from services.ai_service import deepseek_ai_service
+
+    deepseek_ai_service.init_app(app)
+
+    # 触发初始化
+    if deepseek_ai_service._initialized:
+        app.logger.info("DeepSeek AI Service is ready to use.")
+    else:
+        app.logger.error("Failed to initialize DeepSeek AI Service.")
+
+
 def register_blueprints(app):
     from api.routes.login import login_bp
     from api.routes.user_profile import user_profile_bp
+    from api.routes.asset import asset_bp
+    from api.routes.work import work_bp
+    from api.routes.ai import ai_bp
 
-    app.register_blueprint(login_bp, url_prefix=f'/')
-    app.register_blueprint(user_profile_bp, url_prefix=f'/user_profile')
+    # 使用配置文件中的API前缀
+    api_prefix = app.config['API_PREFIX']
+
+    app.register_blueprint(login_bp, url_prefix='/login')
+    app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
+    app.register_blueprint(asset_bp, url_prefix='/asset')
+    app.register_blueprint(work_bp, url_prefix='/work')
+    app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
