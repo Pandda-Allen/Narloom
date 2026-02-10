@@ -1,23 +1,13 @@
 # api/routes/asset.py
 from flask import Blueprint, request
-from utils.response_helper import error_response, api_response
+from utils.response_helper import error_response, api_response, format_supabase_response
 from services.supabase_service import SupabaseService
 import json
 from datetime import datetime
 
 asset_bp = Blueprint('asset', __name__)
 
-def read_asset_data(data, asset_type):
-    """
-    读取并解析前端回传的asset数据
-    
-    Args:
-        data: 请求的JSON数据
-        asset_type: asset类型 ('character' 或 'world')
-    
-    Returns:
-        dict: 解析后的asset数据
-    """
+def fetch_asset_data(data, asset_type):
     try:
         if asset_type == 'character':
             asset_data = {
@@ -26,18 +16,20 @@ def read_asset_data(data, asset_type):
                 'character_name': data.get('name', ''),
                 'description': data.get('description', ''),
                 'role': data.get('role', ''),
-                'traits': json.dumps(data.get('traits', {})) if isinstance(data.get('traits'), dict) else data.get('traits', '{}'),
+                'traits': data.get('traits', '{}'),
                 'faction': data.get('faction', ''),
                 'group': data.get('group', ''),
-                'relationship': json.dumps(data.get('relationship', {})) if isinstance(data.get('relationship'), dict) else data.get('relationship', '{}'),
+                'relationship': data.get('relationship', '{}'),
                 'notes': data.get('notes', ''),
-                'created_at': data.get('created_at', datetime.now().isoformat()),
-                'updated_at': data.get('updated_at', datetime.now().isoformat())
+                'created_at': data.get('created_at', datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
         elif asset_type == 'world':
             asset_data = {
                 'user_id': data.get('user_id', ''),
+                'asset_id': data.get('id', None),
                 'world_name': data.get('name', ''),
+                'description': data.get('description', ''),
                 'location': json.dumps(data.get('location', {})) if isinstance(data.get('location'), dict) else data.get('location', '{}'),
                 'rule': json.dumps(data.get('rule', {})) if isinstance(data.get('rule'), dict) else data.get('rule', '{}'),
                 'system': json.dumps(data.get('system', {})) if isinstance(data.get('system'), dict) else data.get('system', '{}'),
@@ -49,7 +41,7 @@ def read_asset_data(data, asset_type):
                 'map': json.dumps(data.get('map', {})) if isinstance(data.get('map'), dict) else data.get('map', '{}'),
                 'timeline': json.dumps(data.get('timeline', {})) if isinstance(data.get('timeline'), dict) else data.get('timeline', '{}'),
                 'created_at': data.get('created_at', datetime.now().isoformat()),
-                'updated_at': data.get('updated_at', datetime.now().isoformat())
+                'updated_at': datetime.now().isoformat()
             }
         else:
             return None
@@ -61,60 +53,7 @@ def read_asset_data(data, asset_type):
     except Exception as e:
         raise ValueError(f"Error reading asset data: {str(e)}")
 
-def format_supabase_response(response):
-    """
-    格式化Supabase响应，确保可以jsonify
-    
-    Args:
-        response: Supabase响应对象
-    
-    Returns:
-        dict: 格式化后的响应数据
-    """
-    try:
-        if not response:
-            return None
-            
-        # 处理不同的响应结构
-        if hasattr(response, 'data'):
-            data = response.data
-        elif isinstance(response, dict) and 'data' in response:
-            data = response['data']
-        else:
-            data = response
-            
-        # 如果数据是列表，处理每个元素
-        if isinstance(data, list):
-            formatted_data = []
-            for item in data:
-                if hasattr(item, '__dict__'):
-                    formatted_item = {}
-                    for key, value in item.__dict__.items():
-                        if not key.startswith('_'):
-                            # 处理特殊类型
-                            if hasattr(value, 'isoformat'):
-                                formatted_item[key] = value.isoformat()
-                            else:
-                                formatted_item[key] = value
-                    formatted_data.append(formatted_item)
-                elif isinstance(item, dict):
-                    formatted_data.append(item)
-                else:
-                    formatted_data.append(str(item))
-            return {'data': formatted_data, 'count': len(formatted_data)}
-        
-        # 如果数据是单个对象
-        elif isinstance(data, dict):
-            return {'data': [data], 'count': 1}
-        
-        # 其他情况
-        else:
-            return {'data': [str(data)], 'count': 1}
-            
-    except Exception as e:
-        raise ValueError(f"Error formatting Supabase response: {str(e)}")
-
-@asset_bp.route('/create', methods=['POST'])
+@asset_bp.route('/createNewAsset', methods=['POST'])
 def create_asset():
     """创建新的asset（character或world）"""
     try:
@@ -127,7 +66,7 @@ def create_asset():
             return error_response('Invalid asset type. Must be "character" or "world"', 400)
         
         # 读取数据
-        asset_data = read_asset_data(data, asset_type)
+        asset_data = fetch_asset_data(data, asset_type)
         if not asset_data:
             return error_response('Failed to read asset data', 400)
                 
@@ -151,7 +90,7 @@ def create_asset():
     except Exception as e:
         return error_response(f'Error creating asset: {str(e)}', 500)
 
-@asset_bp.route('/update', methods=['POST'])
+@asset_bp.route('/updateAssetById', methods=['POST'])
 def update_asset():
     """更新asset"""
     try:
@@ -166,7 +105,7 @@ def update_asset():
             return error_response('Invalid asset type. Must be "character" or "world"', 400)
         
         # 读取数据并添加更新时间
-        asset_data = read_asset_data(data, asset_type)
+        asset_data = fetch_asset_data(data, asset_type)
         if not asset_data:
             return error_response('Failed to read asset data', 400)
         
@@ -192,7 +131,7 @@ def update_asset():
     except Exception as e:
         return error_response(f'Error updating asset: {str(e)}', 500)
 
-@asset_bp.route('/get', methods=['GET'])
+@asset_bp.route('/getAssetById', methods=['GET'])
 def get_asset():
     """获取单个asset详情"""
     try:
@@ -219,7 +158,7 @@ def get_asset():
     except Exception as e:
         return error_response(f'Error retrieving asset: {str(e)}', 500)
 
-@asset_bp.route('/getAll', methods=['GET'])
+@asset_bp.route('/getUserAssets', methods=['GET'])
 def get_all_assets():
     """获取asset列表，支持按类型筛选"""
     print("Received request to fetch all assets")
@@ -249,7 +188,7 @@ def get_all_assets():
     except Exception as e:
         return error_response(f'Error retrieving assets: {str(e)}', 500)
 
-@asset_bp.route('/delete', methods=['POST'])
+@asset_bp.route('/deleteAssetById', methods=['POST'])
 def delete_asset():
     """删除asset"""
     try:

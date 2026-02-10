@@ -78,7 +78,8 @@ class SupabaseService:
             return response
         except Exception as e:
             raise e
-        
+
+    ## asset数据库(character_asset, world_asset)操作 ##
     def asset_insert(self, asset_data, asset_type):
         """Insert an asset into Supabase"""
         if not self._client:
@@ -168,6 +169,86 @@ class SupabaseService:
                 response = self._client.table('world_asset').delete().eq('asset_id', asset_id).execute()
             else:
                 raise ValueError("Invalid asset type specified for deletion.")
+            return response
+        except Exception as e:
+            raise e
+
+    ##  work数据库(novel_work)操作 ##
+    def novel_create(self, novel_data):
+        """Create a new novel work in Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_work').insert(novel_data).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def novel_update(self, novel_id, novel_data):
+        """Update an existing novel work in Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_work').update(novel_data).eq('novel_id', novel_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def novel_get_by_id(self, novel_id):
+        """Fetch a novel work by ID from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_work').select('*').eq('novel_id', novel_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    ## work_asset_map数据库操作 ##
+    def map_insert(self, map_data):
+        """Insert a new mapping into Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('work_asset_map').insert(map_data).execute()
+            return response
+        except Exception as e:
+            raise e
+    
+    def map_fetch_by_ids(self, work_id, user_id):
+        """Fetch a mapping by asset_id, work_id and user_id from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('work_asset_map').select('*').eq('work_id', work_id).eq('user_id', user_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def map_delete(self, asset_id, work_id, user_id):
+        """Delete a mapping from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('work_asset_map').delete().eq('asset_id', asset_id).eq('work_id', work_id).eq('user_id', user_id).execute()
             return response
         except Exception as e:
             raise e

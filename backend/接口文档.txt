@@ -1,0 +1,132 @@
+# DeepSeek的AI请求参数结构
+chat_data = {
+    "user_id": "user_123",
+    "task_name": "简单对话",
+    "task_type": "chat", # enum: enhance|abstract|generate|chat|translate|summarize|rewrite|code|analysis
+    "model": "deepseek-chat",
+    "content": {
+        "user_prompt": "请用中文介绍下人工智能的发展历史",
+        "system_prompt": "你是一个知识渊博的历史学家，擅长用简洁有趣的方式讲解复杂话题。"
+    },
+    "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 500
+    },
+    "constraints": {
+        "language": "zh-CN",
+        "tone": "专业但有趣"
+    }
+}
+
+# Asset的创建请求参数结构
+/asset/createNewAsset
+asset_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "asset_id": "",                 # 资产ID(对应asset数据库中的asset_id字段)
+    "name": "",                     # 资产名称
+    "description": "",              # 资产描述
+    "type": "",                     # 资产类型（enum: character|world）
+    "created_at": "",               # 资产创建时间
+    "updated_at": "",               # 资产更新时间
+    === character类型参数 ===
+    "role": "",                     # 角色
+    traits: {
+        "trait1": "trait1",         # 特征
+        "trait2": "trait2"          # 特征
+    },
+    "factions": "",                 # 角色所属阵营
+    "group": "",                    # 角色所属分组
+    relationships: {
+        "name": "relation"          # 关系
+    },
+    === world类型参数 ===
+    "location": "",                 # 地点
+    # 剩余参数TBD
+}
+
+# Asset的更新请求参数结构
+/asset/updateAssetById
+asset_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "asset_id": "",                 # 资产ID(对应asset数据库中的asset_id字段)
+    "name": "",                     # 资产名称
+    "description": "",              # 资产描述
+    "type": "",                     # 资产类型（enum: character|world）
+    "created_at": "",               # 资产创建时间
+    "updated_at": "",               # 资产更新时间
+    === character/world类型参数更新内容 ===
+}
+
+# Asset的根据asset_id获取请求参数结构
+/asset/getAssetById
+asset_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "asset_id": ""                  # 资产ID(对应asset数据库中的asset_id字段)
+    "type": ""                      # 资产类型（enum: character|world）
+}
+
+# Asset的根据user_id获取请求参数结构
+/asset/getAssetsByUserId
+asset_data = {
+    "user_id": ""                  # 用户ID(对应user数据库中的user_id字段)
+    "type": ""                     # 资产类型（enum: character|world|all）
+}
+
+# Novel的创建请求参数结构
+/work/createNovel
+novel_data = {
+    "author_id": "",    # 作者ID(对应user数据库中的user_id字段)
+    "title": "",        # 小说标题
+    "genre": "",        # 小说类型
+    "tags": [],         # 标签
+    "status": "",       # 小说状态
+    "content": "",      # 小说内容
+    "word_count": "",   # 小说字数
+    "description": ""   # 小说描述
+}
+
+# Novel的更新请求参数结构
+/work/updateNovelById
+novel_data = {
+    "author_id": "",    # 作者ID(对应user数据库中的user_id字段)
+    "novel_id": "",     # 小说ID
+    "title": "",        # 小说标题
+    "genre": "",        # 小说类型
+    "tags": [],         # 标签
+    "status": "",       # 小说状态
+    "content": "",      # 小说内容
+    "word_count": "",   # 小说字数
+    "description": ""   # 小说描述
+    "created_at": "",   # 小说创建时间
+}
+
+#Novel的获取请求参数结构
+/work/getNovelById
+novel_data = {
+    "novel_id": ""      # 小说ID
+}
+
+# work_asset_map的创建请求参数结构
+/buildmap/buildMap
+map_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "work_id": "",                  # work ID
+    "asset_id": "",                 # 资产ID
+    "asset_type": "",               # 资产类型（enum: character|world）
+    "notes": "",                    # 笔记
+}
+
+# work_asset_map的获取请求参数结构
+/buildMap/getMapByWorkId
+map_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "work_id": ""                   # work ID
+}
+
+# work_asset_map的删除请求参数结构
+/buildMap/deleteMapById
+map_data = {
+    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
+    "asset_id": "",                 # 资产ID
+    "work_id": ""                   # work ID
+}

@@ -1,47 +1,61 @@
 # api/routes/work.py
-import supabase
 from flask import Blueprint, request
-from utils.response_helper import error_response, api_response
+from utils.response_helper import error_response, api_response, format_supabase_response
+from services.supabase_service import SupabaseService
+import json
+from datetime import datetime
 
 work_bp = Blueprint('work', __name__)
 
-@work_bp.route('/', methods=['POST'])
-def create_work():
-    """创建新的work"""
-    data = request.get_json()
-    
-    required_fields = ['title', 'user_id']
-    for field in required_fields:
-        if not data.get(field):
-            return error_response(f'Missing required field: {field}', 400)
-    
+
+def fetch_novel_data(data):
     try:
-        work_data = {
+        novel_data = {
+            'author_id': data.get('author_id'),
+            'novel_id': data.get('novel_id', None),
             'title': data.get('title'),
-            'description': data.get('description', ''),
-            'user_id': data.get('user_id'),
-            'work_type': data.get('work_type', 'story'),  # story, novel, script, etc.
-            'genre': data.get('genre', []),
+            'genre': data.get('genre', ''),
             'tags': data.get('tags', []),
             'status': data.get('status', 'draft'),  # draft, in_progress, completed, published
-            'content': data.get('content', {}),
-            'settings': data.get('settings', {}),
-            'characters': data.get('characters', []),
-            'locations': data.get('locations', []),
+            'content': data.get('content', ''),
             'word_count': data.get('word_count', 0),
-            'visibility': data.get('visibility', 'private'),  # private, public, unlisted
-            'created_at': data.get('created_at', 'now()'),
-            'updated_at': data.get('updated_at', 'now()')
+            'created_at': data.get('created_at', datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+            'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'description': data.get('description', ''),
         }
-        
+        # 移除空值字段
+        novel_data = {k: v for k, v in novel_data.items() if v is not None}
+        return novel_data
+    except Exception as e:
+        raise ValueError(f"Error reading novel data: {str(e)}")
+
+@work_bp.route('/createNovel', methods=['POST'])
+def create_novel():
+    """创建新的work(novel)"""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return error_response('No data provided', 400)
+
+        # 从请求数据中提取novel信息
+        novel_data = fetch_novel_data(data)
+
+        if not novel_data:
+            return error_response('Invalid work data', 400)
+
         # 插入到Supabase
-        response = supabase.table('works').insert(work_data).execute()
-        
-        if response and 'data' in response and len(response['data']) > 0:
+        response = SupabaseService().novel_create(novel_data)
+
+        # 格式化响应
+        formatted_response = format_supabase_response(response)
+
+        if formatted_response and formatted_response.get('count', 0) > 0:
             return api_response(
                 success=True,
                 message='Work created successfully',
-                data=response['data'][0]
+                data=formatted_response['data'][0],
+                count=formatted_response.get('count')
             )
         else:
             return error_response('Failed to create work', 500)
@@ -49,158 +63,67 @@ def create_work():
     except Exception as e:
         return error_response(f'Error creating work: {str(e)}', 500)
 
-@work_bp.route('/', methods=['GET'])
-def get_works():
-    """获取work列表，支持多种查询条件"""
-    # 获取查询参数
-    user_id = request.args.get('user_id')
-    work_type = request.args.get('type')
-    status = request.args.get('status')
-    genre = request.args.get('genre')
-    search = request.args.get('search')
-    limit = request.args.get('limit', default=50, type=int)
-    offset = request.args.get('offset', default=0, type=int)
-    
+@work_bp.route('/updateNovelById', methods=['POST'])
+def update_novel():
+    """更新work(novel)"""
     try:
-        query = supabase.table('works').select('*')
+        data = request.get_json()
+
+        if not data:
+            return error_response('No data provided', 400)
+
+        novel_id = data.get('novel_id')
+        if not novel_id:
+            return error_response('Novel ID is required', 400)
+
+        # 从请求数据中提取novel信息
+        novel_data = fetch_novel_data(data)
+
+        if not novel_data:
+            return error_response('Invalid work data', 400)
+
+        # 更新到Supabase
+        response = SupabaseService().novel_update(novel_id, novel_data)
         
-        # 添加筛选条件
-        if user_id:
-            query = query.eq('user_id', user_id)
-        if work_type:
-            query = query.eq('work_type', work_type)
-        if status:
-            query = query.eq('status', status)
-        if genre:
-            query = query.contains('genre', [genre])
-        if search:
-            query = query.ilike('title', f'%{search}%')
-        
-        # 排序和分页
-        query = query.order('updated_at', desc=True).limit(limit).offset(offset)
-        
-        response = query.execute()
-        
-        if response and 'data' in response:
+        # 格式化响应
+        formatted_response = format_supabase_response(response)
+
+        if formatted_response and formatted_response.get('count', 0) > 0:
             return api_response(
                 success=True,
-                message='Works retrieved successfully',
-                data=response['data']
+                message='Work updated successfully',
+                data=formatted_response['data'][0],
+                count=formatted_response.get('count')
             )
         else:
-            return error_response('No works found', 404)
+            return error_response('Failed to update work', 500)
             
     except Exception as e:
-        return error_response(f'Error retrieving works: {str(e)}', 500)
-
-@work_bp.route('/<work_id>', methods=['GET'])
-def get_work(work_id):
-    """获取单个work详情"""
+        return error_response(f'Error updating work: {str(e)}', 500)
+    
+@work_bp.route('/getNovelById', methods=['GET'])
+def get_novel():
+    """获取单个work(novel)详情"""
     try:
-        response = supabase.table('works').select('*').eq('id', work_id).execute()
-        
-        if response and 'data' in response and len(response['data']) > 0:
+        novel_id = request.args.get('novel_id')
+        if not novel_id:
+            return error_response('Novel ID is required', 400)
+
+        # 从Supabase获取novel信息
+        response = SupabaseService().novel_get_by_id(novel_id)
+
+        # 格式化响应
+        formatted_response = format_supabase_response(response)
+
+        if formatted_response and formatted_response.get('count', 0) > 0:
             return api_response(
                 success=True,
                 message='Work retrieved successfully',
-                data=response['data'][0]
+                data=formatted_response['data'][0],
+                count=formatted_response.get('count')
             )
         else:
             return error_response('Work not found', 404)
             
     except Exception as e:
         return error_response(f'Error retrieving work: {str(e)}', 500)
-
-@work_bp.route('/<work_id>', methods=['PUT'])
-def update_work(work_id):
-    """更新work"""
-    data = request.get_json()
-    
-    try:
-        update_data = {
-            'title': data.get('title'),
-            'description': data.get('description'),
-            'work_type': data.get('work_type'),
-            'genre': data.get('genre'),
-            'tags': data.get('tags'),
-            'status': data.get('status'),
-            'content': data.get('content'),
-            'settings': data.get('settings'),
-            'characters': data.get('characters'),
-            'locations': data.get('locations'),
-            'word_count': data.get('word_count'),
-            'visibility': data.get('visibility'),
-            'updated_at': 'now()'
-        }
-        
-        # 移除None值
-        update_data = {k: v for k, v in update_data.items() if v is not None}
-        
-        response = supabase.table('works').update(update_data).eq('id', work_id).execute()
-        
-        if response and 'data' in response:
-            return api_response(
-                success=True,
-                message='Work updated successfully',
-                data=response['data'][0]
-            )
-        else:
-            return error_response('Work not found', 404)
-            
-    except Exception as e:
-        return error_response(f'Error updating work: {str(e)}', 500)
-
-@work_bp.route('/<work_id>', methods=['DELETE'])
-def delete_work(work_id):
-    """删除work"""
-    try:
-        response = supabase.table('works').delete().eq('id', work_id).execute()
-        
-        if response and 'data' in response:
-            return api_response(
-                success=True,
-                message='Work deleted successfully',
-                data={}
-            )
-        else:
-            return error_response('Work not found', 404)
-            
-    except Exception as e:
-        return error_response(f'Error deleting work: {str(e)}', 500)
-
-@work_bp.route('/<work_id>/stats', methods=['GET'])
-def get_work_stats(work_id):
-    """获取work的统计信息"""
-    try:
-        # 获取work基础信息
-        work_response = supabase.table('works').select('*').eq('id', work_id).execute()
-        
-        if not work_response or 'data' not in work_response or len(work_response['data']) == 0:
-            return error_response('Work not found', 404)
-        
-        work = work_response['data'][0]
-        
-        # 这里可以添加更多的统计逻辑，例如：
-        # - 字数统计
-        # - 章节数量
-        # - 引用资源数量等
-        
-        stats = {
-            'work_id': work_id,
-            'title': work['title'],
-            'word_count': work.get('word_count', 0),
-            'character_count': len(work.get('characters', [])),
-            'location_count': len(work.get('locations', [])),
-            'created_at': work.get('created_at'),
-            'updated_at': work.get('updated_at'),
-            'status': work.get('status')
-        }
-        
-        return api_response(
-            success=True,
-            message='Work stats retrieved successfully',
-            data=stats
-        )
-            
-    except Exception as e:
-        return error_response(f'Error retrieving work stats: {str(e)}', 500)
