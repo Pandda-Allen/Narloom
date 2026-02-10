@@ -56,7 +56,7 @@ def register_blueprints(app):
 
     app.register_blueprint(login_bp, url_prefix='/login')
     app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
-    app.register_blueprint(asset_bp, url_prefix='/asset')
-    app.register_blueprint(work_bp, url_prefix='/work')
+    app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
+    app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
-    app.register_blueprint(buildmap_bp, url_prefix='/buildmap')
+    app.register_blueprint(buildmap_bp, url_prefix='/rest/v1/buildmap')
