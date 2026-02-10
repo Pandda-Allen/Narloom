@@ -100,7 +100,7 @@ novel_data = {
     "created_at": "",   # 小说创建时间
 }
 
-#Novel的获取请求参数结构
+# Novel的获取请求参数结构
 /work/getNovelById
 novel_data = {
     "novel_id": ""      # 小说ID
