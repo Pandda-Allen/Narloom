@@ -1,6 +1,4 @@
 import supabase
-import os
-import app
 from flask import Blueprint, jsonify, request, redirect, url_for
 from utils.response_helper import error_response, api_response
 from services.supabase_service import SupabaseService
@@ -16,19 +14,27 @@ def login():
           " password:", password)
 
     try:
-        response = SupabaseService().client_login(email, password)
+        response = supabase.auth.sign_in_with_password(
+            {
+                'email': email,
+                'password': password
+            }
+        )
 
-        if response and response.user: # currently response cannot be jsonify, need to fix
+        if response and 'user' in response:
             return api_response(
                 success=True,
                 message='Login successful',
-                data = response.user
+                data={
+                    'user': response['user'],
+                    'session': response.get('session'),
+                }
             )
         else:
-            print("Invalid credentials")
             return error_response('Invalid credentials', 401)
 
     except Exception as e:
         print("Login error:", str(e))
+        print(e)
         return error_response('Invalid credentials', 401)
     

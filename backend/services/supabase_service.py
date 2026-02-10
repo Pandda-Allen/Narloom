@@ -259,6 +259,23 @@ class SupabaseService:
         if not self._client:
             self._initialize()
         return self._client
+
+    def login(self, email, password):
+        try:
+            response = self.client.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+
+            # 登录成功后的用户信息
+            user = response.user
+            session = response.session
+
+            print(f"登录成功！用户ID: {user}")
+            print(f"访问令牌: {session}")
+            print(f"刷新令牌: {session.refresh_token}")
+        except Exception as e:
+            print(e)
     
 # 全局实例
 supabase_service = SupabaseService()

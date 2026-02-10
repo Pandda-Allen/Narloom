@@ -12,9 +12,6 @@ def create_app(config_name='default'):
     # 初始化Supabase客户端
     init_supabase(app)
 
-    # 初始化AIService
-    init_ai_service(app)
-
     # 注册Flask Blueprints
     register_blueprints(app)
 
