@@ -42,7 +42,7 @@ def create_chapter():
             success=True,
             message='Chapter created successfully',
             data=formatted['data'],
-            count=formatted.get('count')
+            count=formatted['count']
         )
     return error_response('Failed to create chapter', 500)
 
@@ -64,7 +64,8 @@ def update_chapter():
         return api_response(
             success=True,
             message='Chapter updated successfully',
-            data=formatted['data']
+            data=formatted['data'],
+            count=formatted['count']
         )
     return error_response('Failed to update chapter', 500)
             
@@ -85,7 +86,7 @@ def get_chapter_by_novel_id():
         return api_response(
             success=True, 
             message='Chapters fetched successfully', 
-            data=formatted.get('data'),
-            count=formatted.get('count')
+            data=formatted['data'],
+            count=formatted['count']
         )
     return error_response('Failed to fetch chapters', 500)
