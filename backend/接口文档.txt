@@ -107,7 +107,7 @@ novel_data = {
 }
 
 # work_asset_map的创建请求参数结构
-/buildmap/buildMap
+/work_asset_map/work_asset_map
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": "",                  # work ID
@@ -117,14 +117,14 @@ map_data = {
 }
 
 # work_asset_map的获取请求参数结构
-/buildMap/getMapByWorkId
+/work_asset_map/getMapByWorkId
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": ""                   # work ID
 }
 
 # work_asset_map的删除请求参数结构
-/buildMap/deleteMapById
+/work_asset_map/deleteMapById
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "asset_id": "",                 # 资产ID

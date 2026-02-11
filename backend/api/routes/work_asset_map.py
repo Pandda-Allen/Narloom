@@ -1,11 +1,11 @@
-# api/routes/buildmap.py
+# api/routes/work_asset_map.py
 from flask import Blueprint, request
 from utils.response_helper import error_response, api_response, format_supabase_response
 from services.supabase_service import SupabaseService
 import json
 from datetime import datetime
 
-buildmap_bp = Blueprint('buildmap', __name__)
+work_asset_map_bp = Blueprint('work_asset_map', __name__)
 
 def fetch_map_data(data):
     map_data = {
@@ -22,8 +22,8 @@ def fetch_map_data(data):
     map_data = {k: v for k, v in map_data.items() if v is not None}
     return map_data
 
-@buildmap_bp.route('/buildMap', methods=['POST'])
-def build_map():
+@work_asset_map_bp.route('/createNewMap', methods=['POST'])
+def create_new_map():
     try:
         data = request.get_json()
         if not data:
@@ -51,7 +51,7 @@ def build_map():
     except Exception as e:
         return error_response(str(e), 500)
     
-@buildmap_bp.route('/getMapByWorkId', methods=['GET'])
+@work_asset_map_bp.route('/getMapByWorkId', methods=['GET'])
 def get_map_by_work_id():
     try:
         data = request.get_json()
@@ -80,7 +80,7 @@ def get_map_by_work_id():
     except Exception as e:
         return error_response(str(e), 500)
 
-@buildmap_bp.route('/deleteMapById', methods=['POST'])
+@work_asset_map_bp.route('/deleteMapById', methods=['POST'])
 def delete_map_by_id():
     try:
         data = request.get_json()

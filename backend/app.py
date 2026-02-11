@@ -49,7 +49,7 @@ def register_blueprints(app):
     from api.routes.asset import asset_bp
     from api.routes.work import work_bp
     from api.routes.ai import ai_bp
-    from api.routes.buildmap import buildmap_bp
+    from api.routes.work_asset_map import work_asset_map_bp
 
     # 使用配置文件中的API前缀
     api_prefix = app.config['API_PREFIX']
@@ -59,4 +59,4 @@ def register_blueprints(app):
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
-    app.register_blueprint(buildmap_bp, url_prefix='/rest/v1/buildmap')
+    app.register_blueprint(work_asset_map_bp, url_prefix='/rest/v1/work_asset_map')

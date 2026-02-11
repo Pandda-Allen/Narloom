@@ -138,8 +138,6 @@ def get_asset():
         # 获取asset类型（可选）
         asset_type = request.args.get('type')
         asset_id = request.args.get('asset_id')
-
-        print(f"Fetching asset with ID: {asset_id} and type: {asset_type}")
         
         response = SupabaseService().asset_fetch_by_id(asset_id, asset_type)
         
@@ -158,8 +156,8 @@ def get_asset():
     except Exception as e:
         return error_response(f'Error retrieving asset: {str(e)}', 500)
 
-@asset_bp.route('/getUserAssets', methods=['GET'])
-def get_all_assets():
+@asset_bp.route('/getAssetsByUserId', methods=['GET'])
+def get_user_assets():
     """获取asset列表，支持按类型筛选"""
     print("Received request to fetch all assets")
     try:
