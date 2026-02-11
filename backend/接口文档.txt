@@ -109,7 +109,7 @@ novel_data = {
 }
 
 # Novel的获取请求参数结构
-/work/getNovelById
+/work/getNovelByAuthorId
 novel_data = {
     "author_id": ""     # 作者ID(对应user数据库中的user_id字段)
 }
