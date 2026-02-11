@@ -17,9 +17,8 @@ def fetch_novel_data(data):
             'genre': data.get('genre', ''),
             'tags': data.get('tags', []),
             'status': data.get('status', 'draft'),  # draft, in_progress, completed, published
-            'content': data.get('content', ''),
+            'chapter_count': data.get('chapter_count', 0),
             'word_count': data.get('word_count', 0),
-            'created_at': data.get('created_at', datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
             'updated_at': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'description': data.get('description', ''),
         }
@@ -40,6 +39,7 @@ def create_novel():
 
         # 从请求数据中提取novel信息
         novel_data = fetch_novel_data(data)
+        novel_data.append('created_at', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
         if not novel_data:
             return error_response('Invalid work data', 400)

@@ -51,11 +51,49 @@ def create_new_map():
     except Exception as e:
         return error_response(str(e), 500)
     
-@work_asset_map_bp.route('/getMapByWorkId', methods=['GET'])
-def get_map_by_work_id():
+def parse_map_data_asset(map_response):
+    try:
+        if not map_response:
+            return None
+        
+        # 处理不同的响应结构
+        if hasattr(map_response, 'data'):
+            data = map_response.data
+        elif isinstance(map_response, dict) and 'data' in map_response:
+            data = map_response['data']
+        else:
+            data = map_response
+
+        result_data = {
+            'character': [],
+            'world': []
+        }
+
+        for item in data:
+            item_id = item.get('asset_id')
+            item_type = item.get('asset_type')
+
+            if item_type == 'character':
+                asset_response = SupabaseService().asset_fetch_by_id(item_id, 'character')
+            elif item_type == 'world':
+                asset_response = SupabaseService().asset_fetch_by_id(item_id, 'world')
+            else:
+                continue
+
+            if asset_response.data:
+                result_data[item_type].append(asset_response.data[0])
+        return result_data
+    
+    except KeyError as ke:
+        raise ValueError(f"Error parsing map data asset: Missing key {str(ke)}")
+    except Exception as e:
+        raise ValueError(f"Error parsing map data asset: {str(e)}")        
+
+@work_asset_map_bp.route('/getAssetsByWorkId', methods=['GET'])
+def get_assets_by_work_id():
     try:
         data = request.get_json()
-        print("Received data for getMapByWorkId:", data)  # 调试输出
+
         if not data:
             return error_response('No data provided', 400)
         
@@ -66,13 +104,16 @@ def get_map_by_work_id():
 
         response = SupabaseService().map_fetch_by_ids(work_id, user_id)
 
-        formatted_response = format_supabase_response(response)
+        parse_response = parse_map_data_asset(response)
+
+        formatted_response = format_supabase_response(parse_response)
 
         if formatted_response and formatted_response.get('count', 0) > 0:
             return api_response(
                 success=True, 
                 message='Map fetched successfully', 
-                data=formatted_response.get('data')[0]
+                data=formatted_response.get('data'),
+                count=formatted_response.get('count')
             )
         else:
             return error_response('Failed to fetch map', 500)

@@ -18,6 +18,7 @@ chat_data = {
     }
 }
 
+------ Asset接口 ------
 # Asset的创建请求参数结构
 /asset/createNewAsset
 asset_data = {
@@ -72,6 +73,7 @@ asset_data = {
     "type": ""                     # 资产类型（enum: character|world|all）
 }
 
+------ Novel接口 ------
 # Novel的创建请求参数结构
 /work/createNovel
 novel_data = {
@@ -106,8 +108,9 @@ novel_data = {
     "novel_id": ""      # 小说ID
 }
 
+------ work_asset_map接口 ------
 # work_asset_map的创建请求参数结构
-/work_asset_map/work_asset_map
+/work_asset_map/createNewMap
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": "",                  # work ID
@@ -117,10 +120,42 @@ map_data = {
 }
 
 # work_asset_map的获取请求参数结构
-/work_asset_map/getMapByWorkId
+/work_asset_map/getAssetsByWorkId
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": ""                   # work ID
+}
+return示例：
+{
+    "count": 1,
+    "data": {
+        "character": [
+            {
+                "asset_id": "cbc560d8-c0ee-46a6-9125-979a65228c90",
+                "character_name": "二六",
+                "created_at": "2026-02-10 18:28:39",
+                "description": "可爱的金渐层小猫咪",
+                "faction": "",
+                "group": "徐家",
+                "notes": "2025年7月26日出生",
+                "relationship": {
+                    "三花": "朋友",
+                    "徐嘉铭": "主人"
+                },
+                "role": "pet",
+                "traits": {
+                    "eye color": "祖母绿",
+                    "fur": "blonde",
+                    "paw color": "black"
+                },
+                "updated_at": "2026-02-10 18:28:39",
+                "user_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2"
+            }
+        ],
+        "world": []
+    },
+    "message": "Map fetched successfully",
+    "status": "success"
 }
 
 # work_asset_map的删除请求参数结构
@@ -129,4 +164,71 @@ map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "asset_id": "",                 # 资产ID
     "work_id": ""                   # work ID
+}
+
+------ chapter接口 ------
+# novel_chapter的创建请求参数结构
+/chapter/createChapter
+chapter_data = {
+    "novel_id": "",                 # 章节所属的novel ID
+    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
+    "chapter_number": 1,            # 章节编号
+    "chapter_title": "",            # 章节标题
+    "content": "",                  # 章节内容
+    "word_count": 0,                # 章节字数
+    "description": ""               # 章节描述
+}
+
+# novel_chapter的更新请求参数结构
+/chapter/updateChapterById
+chapter_data = {
+    "chapter_id": "",               # 章节ID
+    "novel_id": "",                 # 章节所属的novel ID
+    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
+    "chapter_number": 1,            # 章节编号
+    "chapter_title": "",            # 章节标题
+    "content": "",                  # 章节内容
+    "word_count": 0,                # 章节字数
+    "description": ""               # 章节描述
+}
+
+# novel_chapter的获取请求参数结构
+/chapter/getChapterByNovelId
+chapter_data = {
+    "novel_id": "",                 # 章节所属的novel ID
+    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
+}
+return示例：
+{
+    "count": 2,
+    "data": [
+        {
+            "author_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2",
+            "chapter_id": "4f93abcf-940f-4ee3-bc79-bf396456707b",
+            "chapter_number": 1,
+            "chapter_title": "九尾狐显世",
+            "content": "波风水门单挑九喇嘛，夫妻二人献祭将其封印",
+            "created_at": "2026-02-11 17:33:12",
+            "description": "trial",
+            "novel_id": "c2c7dda1-18be-4c13-866a-fcddedab0257",
+            "status": "trial",
+            "updated_at": "2026-02-11 17:38:33",
+            "word_count": 9
+        },
+        {
+            "author_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2",
+            "chapter_id": "60bacb21-6c69-4723-a18b-14ce1f9abfb4",
+            "chapter_number": 2,
+            "chapter_title": "鸣人入学",
+            "content": "孤儿鸣人在伊鲁卡老师的教导下立志成为一名忍者",
+            "created_at": "2026-02-11 17:41:13",
+            "description": "trial",
+            "novel_id": "c2c7dda1-18be-4c13-866a-fcddedab0257",
+            "status": "trial",
+            "updated_at": "2026-02-11 17:41:13",
+            "word_count": 9
+        }
+    ],
+    "message": "Chapters fetched successfully",
+    "status": "success"
 }

@@ -213,6 +213,47 @@ class SupabaseService:
         except Exception as e:
             raise e
 
+    ## chapter数据库(novel_chapter)操作 ##
+    def chapter_create(self, chapter_data):
+        """Create a new chapter in Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_chapter').insert(chapter_data).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def chapter_update(self, chapter_id, chapter_data):
+        """Update an existing chapter in Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_chapter').update(chapter_data).eq('chapter_id', chapter_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def chapter_fetch_by_novel_id(self, novel_id):
+        """Fetch chapters by novel_id from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_chapter').select('*').eq('novel_id', novel_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+
     ## work_asset_map数据库操作 ##
     def map_insert(self, map_data):
         """Insert a new mapping into Supabase"""

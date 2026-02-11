@@ -46,10 +46,11 @@ def init_ai_service(app):
 def register_blueprints(app):
     from api.routes.login import login_bp
     from api.routes.user_profile import user_profile_bp
-    from api.routes.asset import asset_bp
-    from api.routes.work import work_bp
-    from api.routes.ai import ai_bp
     from api.routes.work_asset_map import work_asset_map_bp
+    from api.routes.work import work_bp
+    from api.routes.chapter import chapter_bp
+    from api.routes.asset import asset_bp
+    from api.routes.ai import ai_bp
 
     # 使用配置文件中的API前缀
     api_prefix = app.config['API_PREFIX']
@@ -58,5 +59,6 @@ def register_blueprints(app):
     app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
+    app.register_blueprint(chapter_bp, url_prefix='/rest/v1/chapter')
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
     app.register_blueprint(work_asset_map_bp, url_prefix='/rest/v1/work_asset_map')
