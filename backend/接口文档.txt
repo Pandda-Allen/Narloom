@@ -108,6 +108,12 @@ novel_data = {
     "novel_id": ""      # 小说ID
 }
 
+# Novel的获取请求参数结构
+/work/getNovelById
+novel_data = {
+    "author_id": ""     # 作者ID(对应user数据库中的user_id字段)
+}
+
 ------ work_asset_map接口 ------
 # work_asset_map的创建请求参数结构
 /work_asset_map/createNewMap

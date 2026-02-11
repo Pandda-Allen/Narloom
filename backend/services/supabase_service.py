@@ -200,7 +200,7 @@ class SupabaseService:
         except Exception as e:
             raise e
 
-    def novel_get_by_id(self, novel_id):
+    def novel_fetch_by_id(self, novel_id):
         """Fetch a novel work by ID from Supabase"""
         if not self._client:
             self._initialize()
@@ -209,6 +209,19 @@ class SupabaseService:
         
         try:
             response = self._client.table('novel_work').select('*').eq('novel_id', novel_id).execute()
+            return response
+        except Exception as e:
+            raise e
+
+    def novel_fetch_by_author_id(self, author_id):
+        """Fetch novel works by author_id from Supabase"""
+        if not self._client:
+            self._initialize()
+        if not self._client:
+            raise Exception("Supabase client is not initialized.")
+        
+        try:
+            response = self._client.table('novel_work').select('*').eq('author_id', author_id).execute()
             return response
         except Exception as e:
             raise e
