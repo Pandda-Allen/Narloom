@@ -72,7 +72,7 @@ def get_novel():
     """获取单个work(novel)详情"""
     validate_required_fields(request.args, ['novel_id'])
 
-    response = SupabaseService().novel_get_by_id(
+    response = SupabaseService().novel_fetch_by_id(
         request.args.get('novel_id')
     )
     formatted = format_supabase_response(response)
@@ -85,3 +85,23 @@ def get_novel():
             count=formatted['count']
         )
     return error_response('Work not found', 404)
+
+@work_bp.route('/getNovelsByAuthorId', methods=['GET'])
+@handle_errors
+def get_novels_by_author_id():
+    """根据author_id获取work(novel)列表"""
+    validate_required_fields(request.args, ['author_id'])
+
+    response = SupabaseService().novel_fetch_by_author_id(
+        request.args.get('author_id')
+    )
+    formatted = format_supabase_response(response)
+
+    if formatted and formatted.get('count', 0) > 0:
+        return api_response(
+            success=True, 
+            message='Works fetched successfully', 
+            data=formatted['data'],
+            count=formatted['count']
+        )
+    return error_response('Failed to fetch works', 500)
