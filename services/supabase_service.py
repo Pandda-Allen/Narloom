@@ -98,7 +98,9 @@ class SupabaseService:
     def _execute(self, operation, *args, **kwargs):
         """统一执行数据库操作并处理异常"""
         try:
-            return operation(*args, **kwargs).execute()
+            return operation(*args, **kwargs).execute(
+                
+            )
         except Exception as e:
             self._log(f"Database operation failed: {e}", level='error')
             raise
