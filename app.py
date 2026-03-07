@@ -12,6 +12,10 @@ def create_app(config_name='default'):
     # 初始化Supabase客户端
     init_supabase(app)
 
+    # 初始化数据库客户端
+    init_mysql(app)
+    # init_mangodb(app)
+
     # 注册Flask Blueprints
     register_blueprints(app)
 
@@ -29,6 +33,30 @@ def init_supabase(app):
         app.logger.info("Supabase client is ready to use.")
     else:
         app.logger.error("Failed to initialize Supabase client.")
+
+def init_mysql(app):
+    """初始化MySQL客户端"""
+    from services.mysql_service import mysql_service
+
+    mysql_service.init_app(app)
+
+    # 触发初始化
+    if mysql_service._initialized:
+        app.logger.info("MySQL service is ready to use.")
+    else:
+        app.logger.error("Failed to initialize MySQL service.")
+
+# def init_mangodb(app):
+#     """初始化MongoDB客户端"""
+#     from services.mongodb_service import mongodb_service
+
+#     mongodb_service.init_app(app)
+
+#     # 触发初始化
+#     if mongodb_service._initialized:
+#         app.logger.info("MongoDB service is ready to use.")
+#     else:
+#         app.logger.error("Failed to initialize MongoDB service.")
 
 def init_ai_service(app):
     """初始化AIService"""

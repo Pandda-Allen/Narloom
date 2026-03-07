@@ -59,6 +59,19 @@ class Config:
             'context_length': 8192
         }
     }
+
+    # MySQL配置
+    MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
+    MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
+    MYSQL_USER = os.getenv('MYSQL_USER', 'root')
+    MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
+    MYSQL_DB = os.getenv('MYSQL_DB', 'narloom')
+    MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE', 'assets')
+
+    # Mongodb配置
+    MONGO_URI = os.getenv('MONGO_URI', '')
+    MONGO_DB = os.getenv('MONGO_DB', 'narloom')
+    MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'asset_data')
     @staticmethod
     def init_app(app):
         """初始化应用配置"""
