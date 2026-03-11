@@ -1,0 +1,75 @@
+# Create MySQL Database:
+CREATE DATABASE narloom CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE narloom;
+
+# Create MySQL Tables:
+CREATE TABLE assets (
+    asset_id CHAR(36) PRIMARY KEY,              -- UUID格式，36个字符
+    user_id VARCHAR(100) NOT NULL,              -- 用户ID
+    work_id VARCHAR(100),                       -- 作品ID，可为空
+    asset_type VARCHAR(50) NOT NULL,            -- 'character' 或 'world'
+    created_time DATETIME NOT NULL,             -- 创建时间
+    updated_time DATETIME NOT NULL,             -- 更新时间
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE works {
+    work_id CHAR(36) PRIMARY KEY,
+    author_id VARCHAR(100) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    genre VARCHAR(100) DEFAULT '',
+    description TEXT DEFAULT '',
+    status VARCHAR(50) DEFAULT 'draft',
+    created_time DATETIME NOT NULL,
+    updated_time DATETIME NOT NULL,
+
+    cover_image_url VARCHAR(255) DEFAULT '',
+    ! tags JSON DEFAULT [],
+    likes INT DEFAULT 0,
+    views INT DEFAULT 0,
+    comments INT DEFAULT 0,
+    liked_by [
+        {
+            user_id: VARCHAR(100),
+            time: DATETIME
+        }
+    ],
+} ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE chapter {
+    chapter_id CHAR(36) PRIMARY KEY,
+    work_id VARCHAR(100) NOT NULL,
+    author_id VARCHAR(100) NOT NULL,
+    chapter_title VARCHAR(255) NOT NULL,
+    content LONGTEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'draft',
+    word_count INT DEFAULT 0,
+    notes TEXT,
+    created_time DATETIME NOT NULL,
+    updated_time DATETIME NOT NULL,
+    FOREIGN KEY (work_id) REFERENCES works(work_id) ON DELETE CASCADE,
+
+    views INT DEFAULT 0,
+    comments INT DEFAULT 0,
+    likes INT DEFAULT 0,
+    liked_by [
+        {
+            user_id: VARCHAR(100),
+            time: DATETIME
+        }
+    ]
+}
+
+# Create MongoDB Collections:
+use narloom;
+db.createCollection('asset_data');
+db.asset_data.createIndex({ asset_id: 1 }, { unique: true });
+
+db.createCollection('work_details');
+db.work_details.createIndex({ work_id: 1 }, { unique: true });
+'''
+work_details: {
+    related_assets:[<asset_id>]
+    released_chapters:[<chapter_id>]
+    tags:[<tag>]
+}
+'''

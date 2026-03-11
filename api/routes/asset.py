@@ -4,7 +4,9 @@ from utils.response_helper import error_response, api_response, format_supabase_
 from utils.general_helper import get_request_json, handle_errors, validate_required_fields
 from services.supabase_service import SupabaseService
 from services.mysql_service import MySQLService
+from services.mongo_service import MongoService
 import json
+import logging
 from datetime import datetime
 
 asset_bp = Blueprint('asset', __name__)
@@ -17,7 +19,7 @@ def fetch_asset_data(data):
         'asset_id': data.get('id', None),
         'asset_type': data.get('type', ''),
         'work_id': data.get('work_id', None),
-        'asset_data': data.get('asset_data', None)
+        'asset_data': data.get('asset_data', {})
     }        
     return {k: v for k, v in proc_data.items() if v is not None}
 
@@ -28,15 +30,17 @@ def create_asset():
     data = get_request_json()
     validate_required_fields(data, ['type', 'user_id'])  # type: character/world
 
-    asset_data = fetch_asset_data(data)
+    user_id = data.get('user_id')
+    asset_type = data.get('type')
+    work_id = data.get('work_id')
+    asset_data = data.get('asset_data', {})
 
-    mysql_row = MySQLService().insert_asset(
-        asset_data.get('user_id'),
-        asset_data.get('asset_type'),
-        asset_data.get('work_id')
-    )
-
+    # 插入MySlQL数据库，并获取完整的行数据（包含 asset_id, created_at, updated_at）
+    mysql_row = MySQLService().insert_asset(user_id, asset_type, work_id)
     asset_id = mysql_row['asset_id']
+
+    # 插入MongoDB数据库
+    MongoService().insert_asset_data(asset_id, asset_data)
 
     result = {
         'asset_id': mysql_row['asset_id'],
@@ -44,7 +48,8 @@ def create_asset():
         'work_id': mysql_row['work_id'],
         'asset_type': mysql_row['asset_type'],
         'created_at': mysql_row['created_at'],
-        'updated_at': mysql_row['updated_at']
+        'updated_at': mysql_row['updated_at'],
+        'asset_data': asset_data
     }
 
     if asset_id:
@@ -66,12 +71,16 @@ def update_asset():
     asset_id = data.get('asset_id')
     
     mysql_updates = {}
+    mongo_updates = None
 
     if 'work_id' in data:
         mysql_updates['work_id'] = data['work_id']
     if 'type' in data:
         mysql_updates['asset_type'] = data['type']
+    if 'asset_data' in data:
+        mongo_updates = data['asset_data']
 
+    # 更新MySQL数据库
     if mysql_updates:
         updated_asset = MySQLService().update_asset(asset_id, mysql_updates)
         if not updated_asset:
@@ -81,7 +90,18 @@ def update_asset():
         if not exiting_asset:
             return error_response('Asset not found for update', 404)
     
+    # 更新MongoDB数据库
+    if mongo_updates is not None:
+        updated = MongoService().update_asset_data(asset_id, mongo_updates)
+        if not updated:
+            # MongoDB数据不存在，尝试插入（异常情况）
+            try:
+                MongoService().insert_asset_data(asset_id, mongo_updates)
+            except Exception as e:
+                return error_response('Failed to update asset data in MongoDB', 500)
+
     final_asset = MySQLService().fetch_asset_by_id(asset_id)
+    final_asset_data = MongoService().fetch_asset_data(asset_id) or {}
 
     result = {
         'asset_id': final_asset['asset_id'],
@@ -89,7 +109,8 @@ def update_asset():
         'work_id': final_asset['work_id'],
         'asset_type': final_asset['asset_type'],
         'created_at': final_asset['created_at'],
-        'updated_at': final_asset['updated_at']
+        'updated_at': final_asset['updated_at'],
+        'asset_data': final_asset_data
     }
     
     return api_response(
@@ -109,6 +130,8 @@ def get_asset():
     mysql_row = MySQLService().fetch_asset_by_id(asset_id)
     if not mysql_row:
         return error_response('Asset not found', 404)
+    
+    asset_data = MongoService().fetch_asset_data(asset_id) or {}
 
     result = {
         'asset_id': mysql_row['asset_id'],
@@ -116,7 +139,8 @@ def get_asset():
         'work_id': mysql_row['work_id'],
         'asset_type': mysql_row['asset_type'],
         'created_at': mysql_row['created_at'],
-        'updated_at': mysql_row['updated_at']
+        'updated_at': mysql_row['updated_at'],
+        'asset_data': asset_data
     }
     
     return api_response(
@@ -146,6 +170,9 @@ def get_user_assets():
             data=[],
             count=0
         )
+    
+    asset_ids = [row['asset_id'] for row in mysql_rows]
+    asset_data_map = MongoService().fetch_multiple_asset_data(asset_ids)
 
     results = []
     for row in mysql_rows:
@@ -155,7 +182,8 @@ def get_user_assets():
             'work_id': row['work_id'],
             'asset_type': row['asset_type'],
             'created_at': row['created_at'],
-            'updated_at': row['updated_at']
+            'updated_at': row['updated_at'],
+            'asset_data': asset_data_map.get(row['asset_id'], {})
         })
 
     return api_response(
@@ -172,6 +200,12 @@ def delete_asset():
     data = get_request_json()
     validate_required_fields(data, ['asset_id'])
     asset_id = data.get('asset_id')
+
+    # 删除MongoDB（失败不影响最终结果，但记录日志）
+    try:
+        MongoService().delete_asset(asset_id)
+    except Exception as e:
+        logging.error(f'Failed to delete asset data from MongoDB: {e}')
 
     deleted = MySQLService().delete_asset(asset_id)
 

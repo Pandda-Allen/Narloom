@@ -14,7 +14,7 @@ def create_app(config_name='default'):
 
     # 初始化数据库客户端
     init_mysql(app)
-    # init_mangodb(app)
+    init_mongo(app)
 
     # 注册Flask Blueprints
     register_blueprints(app)
@@ -46,17 +46,17 @@ def init_mysql(app):
     else:
         app.logger.error("Failed to initialize MySQL service.")
 
-# def init_mangodb(app):
-#     """初始化MongoDB客户端"""
-#     from services.mongodb_service import mongodb_service
+def init_mongo(app):
+    """初始化MongoDB客户端"""
+    from services.mongo_service import mongo_service
 
-#     mongodb_service.init_app(app)
+    mongo_service.init_app(app)
 
-#     # 触发初始化
-#     if mongodb_service._initialized:
-#         app.logger.info("MongoDB service is ready to use.")
-#     else:
-#         app.logger.error("Failed to initialize MongoDB service.")
+    # 触发初始化
+    if mongo_service._initialized:
+        app.logger.info("MongoDB service is ready to use.")
+    else:
+        app.logger.error("Failed to initialize MongoDB service.")
 
 def init_ai_service(app):
     """初始化AIService"""

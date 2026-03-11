@@ -69,7 +69,7 @@ class Config:
     MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE', 'assets')
 
     # Mongodb配置
-    MONGO_URI = os.getenv('MONGO_URI', '')
+    MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
     MONGO_DB = os.getenv('MONGO_DB', 'narloom')
     MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'asset_data')
     @staticmethod
