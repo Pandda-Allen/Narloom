@@ -67,11 +67,14 @@ class Config:
     MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
     MYSQL_DB = os.getenv('MYSQL_DB', 'narloom')
     MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE', 'assets')
+    MYSQL_TABLE_WORKS = os.getenv('MYSQL_TABLE', 'works')
+    MYSQL_TABLE_CHAPTERS = os.getenv('MYSQL_TABLE', 'chapters')
 
     # Mongodb配置
     MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
     MONGO_DB = os.getenv('MONGO_DB', 'narloom')
-    MONGO_COLLECTION = os.getenv('MONGO_COLLECTION', 'asset_data')
+    MONGO_ASSET_DATA_COLLECTION = os.getenv('MONGO_ASSET_DATA_COLLECTION', 'asset_data')
+    MONGO_WORK_DETAILS_COLLECTION = os.getenv('MONGO_WORK_DETAILS_COLLECTION', 'work_details')
     @staticmethod
     def init_app(app):
         """初始化应用配置"""

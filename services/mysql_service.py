@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
@@ -24,7 +25,6 @@ class MySQLService:
         with app.app_context():
             self._initialize()
     
-
     def _initialize(self):
         if self._initialized:
             return
@@ -97,7 +97,7 @@ class MySQLService:
             self._initialize()
         return self._connection
     
-    # ---------------- 资产操作 ----------------
+    # ---------------- asset 资产操作 ----------------
     def insert_asset(self, user_id: str, asset_type:str, work_id: str = None) -> Dict:
         """
         插入资产(asset)记录到MySQL数据库
@@ -218,4 +218,259 @@ class MySQLService:
             cursor.execute(sql, params)
             return cursor.fetchall()
         
+    # ---------------- work 作品操作 ----------------
+    def insert_work(self, author_id: str, title: str, genre: str = '', tags=None,
+                    status: str = 'draft', chapter_count: int = 0, word_count: int = 0,
+                    description: str = '') -> Dict:
+        """
+        插入作品(work)记录到MySQL数据库
+        :return: 插入的行数据(包含 work_id, created_at, updated_at)
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        work_id = str(uuid.uuid4())
+        now = datetime.now()
+        if tags is not None and not isinstance(tags, str):
+            tags = json.dumps(tags, ensure_ascii=False)
+        with conn.cursor() as cursor:
+            sql = f"""
+                INSERT INTO {table} (work_id, author_id, title, genre, tags, status, chapter_count, word_count, description, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (work_id, author_id, title, genre, tags, status,
+                                 chapter_count, word_count, description, now, now))
+            conn.commit()
+        return {
+            'work_id': work_id,
+            'author_id': author_id,
+            'title': title,
+            'genre': genre,
+            'tags': tags,
+            'status': status,
+            'chapter_count': chapter_count,
+            'word_count': word_count,
+            'description': description,
+            'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    
+    def update_work(self, work_id: str, update_data: Dict) -> Optional[Dict]:
+        """
+        更新作品(work)记录到MySQL数据库
+        :return: 更新的行数据(包含 work_id, updated_at)
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        now = datetime.now()
+        allowed_fields = ['title', 'genre', 'tags', 'status', 'chapter_count', 'word_count', 'description']
+        set_clauses = []
+        params = []
+        for field in allowed_fields:
+            if field in update_data:
+                if field == 'tags' and not isinstance(update_data[field], str):
+                    update_data[field] = json.dumps(update_data[field], ensure_ascii=False)
+                set_clauses.append(f"{field} = %s")
+                params.append(update_data[field])
+        
+        set_clauses.append("updated_at = %s")
+        params.append(now)
+        
+        params.append(work_id)
+        with conn.cursor() as cursor:
+            # 先检查作品是否存在
+            cursor.execute(f"SELECT work_id FROM {table} WHERE work_id = %s", (work_id,))
+            if not cursor.fetchone():
+                return None
+            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE work_id = %s"
+            cursor.execute(sql, params)
+            conn.commit()
+
+            # 返回更新后的完整行数据
+            row = cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+    
+    def fetch_work_by_id(self, work_id: str) -> Optional[Dict]:
+        """
+        根据 work_id 从MySQL数据库获取作品(work)记录
+        :return: 作品记录字典，若不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def fetch_works_by_author_id(self, author_id: str, status: Optional[str] = None,
+                                 limit: int = 100, offset: int = 0) -> List[Dict]:
+        """
+        根据作者ID从MySQL数据库获取作者的章节列表
+        :return: 章节列表字典列表
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        conditions = ["author_id = %s"]
+        params = [author_id]
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY updated_at DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        with conn.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            if rows:
+                for row in rows:
+                    row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return rows
+
+    def delete_work(self, work_id: str) -> bool:
+        """
+        根据 work_id 从MySQL数据库删除作品(work)记录
+        :return: 删除成功返回 True，否则返回 False
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table} WHERE work_id = %s", (work_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    # ---------------- chapter 章节操作 ----------------
+    def insert_chapter(self, work_id: str, author_id: str, chapter_number: int,
+                       chapter_title: str = '', content: str = '', status: str = 'draft',
+                       word_count: int = 0, description: str = '') -> Dict:
+        """
+        向MySQL数据库插入章节记录
+        :return: 章节记录字典
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        chapter_id = str(uuid.uuid4())
+        now = datetime.now()
+        with conn.cursor() as cursor:
+            sql = f"""
+                INSERT INTO {table} (chapter_id, work_id, author_id, chapter_number, chapter_title, content, status, word_count, description, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (chapter_id, work_id, author_id, chapter_number,
+                                 chapter_title, content, status,
+                                 word_count, description,
+                                 now, now))
+            conn.commit()
+        return {
+            "chapter_id": chapter_id,
+            "work_id": work_id,
+            "author_id": author_id,
+            "chapter_number": chapter_number,
+            "chapter_title": chapter_title,
+            "content": content,
+            "status": status,
+            "word_count": word_count,
+            "description": description,
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+    def update_chapter(self, chapter_id: str, update_data: Dict) -> Optional[Dict]:
+        """
+        更新MySQL数据库中的章节记录
+        :param chapter_id: 章节ID
+        :param update_data: 更新的数据字典
+        :return: 更新后的章节记录字典，若不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        now = datetime.now()
+        allowed_fields = ['chapter_number', 'chapter_title', 'content', 'status', 'word_count', 'description']
+        set_clauses = []
+        params = []
+
+        for field in allowed_fields:
+            if field in update_data:
+                set_clauses.append(f"{field} = %s")
+                params.append(update_data[field])
+
+        set_clauses.append("updated_at = %s")
+        params.append(now)
+        params.append(chapter_id)
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT chapter_id FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            if not cursor.fetchone():
+                return None
+            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE chapter_id = %s"
+            cursor.execute(sql, params)
+            conn.commit()
+            cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row        
+
+    def fetch_chapter_by_id(self, chapter_id: str) -> Optional[Dict]:
+        """
+        根据章节ID从MySQL数据库获取章节记录
+        :return: 章节记录字典，若不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def fetch_chapters_by_work_id(self, work_id: str, status: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """
+        根据作品ID从MySQL数据库获取章节列表
+        :return: 章节记录字典列表
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        conditions = ["work_id = %s"]
+        params = [work_id]
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY chapter_number ASC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        with conn.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            if rows:
+                for row in rows:
+                    row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return rows
+        
+    def delete_chapter(self, chapter_id: str) -> bool:
+        """
+        从MySQL数据库删除章节记录
+        :param chapter_id: 章节ID
+        :return: 是否成功删除
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
 mysql_service = MySQLService()

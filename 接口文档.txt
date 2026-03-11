@@ -116,7 +116,7 @@ novel_data = {
 
 ------ work_asset_map接口 ------
 # work_asset_map的创建请求参数结构
-/work_asset_map/createNewMap
+/work_asset_map/createNewMap -> /work/addAssetToNovel
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": "",                  # work ID
@@ -126,7 +126,7 @@ map_data = {
 }
 
 # work_asset_map的获取请求参数结构
-/work_asset_map/getAssetsByWorkId
+/work_asset_map/getAssetsByWorkId  -> /work/getAssetsByWorkId
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "work_id": ""                   # work ID
@@ -165,7 +165,7 @@ return示例：
 }
 
 # work_asset_map的删除请求参数结构
-/work_asset_map/deleteMapById
+/work_asset_map/deleteMapById  ->  /work/removeAssetFromNovel
 map_data = {
     "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
     "asset_id": "",                 # 资产ID
