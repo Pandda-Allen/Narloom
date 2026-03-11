@@ -180,6 +180,7 @@ class MongoService:
         )
         return result.matched_count > 0
     
+    # --------- chapter details 数据操作 ----------
     def add_chapter_to_work(self, work_id: str, chapter_id: str) -> bool:
         """将 chapter_id 添加到 work 的 chapter_ids"""
         collection = self._work_details_collection
