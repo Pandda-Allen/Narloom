@@ -86,8 +86,8 @@ def update_asset():
         if not updated_asset:
             return error_response('Asset not found for update', 404)
     else:
-        exiting_asset = MySQLService().fetch_asset_by_id(asset_id)
-        if not exiting_asset:
+        existing_asset = MySQLService().fetch_asset_by_id(asset_id)
+        if not existing_asset:
             return error_response('Asset not found for update', 404)
     
     # 更新MongoDB数据库
@@ -159,8 +159,22 @@ def get_user_assets():
     user_id = request.args.get('user_id')
     asset_type = request.args.get('type', None)
     work_id = request.args.get('work_id', None)
-    limit = int(request.args.get('limit', 100))
-    offset = int(request.args.get('offset', 0))
+    limit_str = request.args.get('limit', '100')
+    offset_str = request.args.get('offset', '0')
+
+    # 验证参数为非负整数
+    try:
+        limit = int(limit_str)
+        offset = int(offset_str)
+    except ValueError:
+        return error_response('limit and offset must be integers', 400)
+
+    if limit < 0 or offset < 0:
+        return error_response('limit and offset must be non-negative integers', 400)
+
+    # 限制最大数量
+    if limit > 1000:
+        limit = 1000
 
     mysql_rows = MySQLService().fetch_assets(user_id, asset_type, work_id, limit, offset)
     if not mysql_rows:

@@ -1,14 +1,12 @@
-import os
 import uuid
 import json
-import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
-from flask import current_app
 import pymysql
 import pymysql.cursors
+from .base_service import BaseService
 
-class MySQLService:
+class MySQLService(BaseService):
     """MySQL 服务类，提供数据库连接和基本操作"""
 
     _instance = None
@@ -63,28 +61,7 @@ class MySQLService:
             'charset': self._get_config('MYSQL_CHARSET', 'utf8mb4')
         }
 
-    def _get_config(self, key: str, default: None) -> Optional[str]:
-        """从 Flask 配置或环境变量获取配置值"""
-        try:
-            if current_app:
-                value = current_app.config.get(key, default)
-                if value is not None:
-                    return value
-        except RuntimeError:
-            pass
-        return os.getenv(key, default)
     
-    def _log(self, message: str, level: str = 'info') -> None:
-        """记录日志"""
-        try:
-            if current_app:
-                logger = current_app.logger
-                getattr(logger, level)(message)
-                return
-        except (RuntimeError, AttributeError):
-            pass
-        logging.basicConfig(level=logging.INFO)
-        getattr(logging, level)(message)
 
     # ---------------- 链接保证 ----------------
     def _ensure_connection(self):
@@ -125,7 +102,7 @@ class MySQLService:
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
         }
     
-    def update_asset(self, asset_id: str, update_data: Data) -> Optional[Dict]:
+    def update_asset(self, asset_id: str, update_data: Dict) -> Optional[Dict]:
         """
         更新资产(asset)记录到MySQL数据库(仅允许更新work_id, asset_type)
         :param: update_data: 可包含'work_id', 'asset_type'的字典
@@ -234,11 +211,11 @@ class MySQLService:
             tags = json.dumps(tags, ensure_ascii=False)
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (work_id, author_id, title, genre, tags, status, chapter_count, word_count, description, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO {table} (work_id, author_id, title, genre, status, word_count, description, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (work_id, author_id, title, genre, tags, status,
-                                 chapter_count, word_count, description, now, now))
+            cursor.execute(sql, (work_id, author_id, title, genre, status,
+                                 word_count, description, now, now))
             conn.commit()
         return {
             'work_id': work_id,
@@ -262,13 +239,11 @@ class MySQLService:
         conn = self._ensure_connection()
         table = self._get_config('MYSQL_TABLE_WORKS', 'works')
         now = datetime.now()
-        allowed_fields = ['title', 'genre', 'tags', 'status', 'chapter_count', 'word_count', 'description']
+        allowed_fields = ['title', 'genre', 'status', 'word_count', 'description']
         set_clauses = []
         params = []
         for field in allowed_fields:
             if field in update_data:
-                if field == 'tags' and not isinstance(update_data[field], str):
-                    update_data[field] = json.dumps(update_data[field], ensure_ascii=False)
                 set_clauses.append(f"{field} = %s")
                 params.append(update_data[field])
         
@@ -286,7 +261,8 @@ class MySQLService:
             conn.commit()
 
             # 返回更新后的完整行数据
-            row = cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
+            row = cursor.fetchone()
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
@@ -360,7 +336,7 @@ class MySQLService:
         now = datetime.now()
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (chapter_id, work_id, author_id, chapter_number, chapter_title, content, status, word_count, description, created_at, updated_at)
+                INSERT INTO {table} (chapter_id, work_id, author_id, chapter_num, chapter_title, content, status, word_count, notes, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (chapter_id, work_id, author_id, chapter_number,
@@ -392,14 +368,22 @@ class MySQLService:
         conn = self._ensure_connection()
         table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
         now = datetime.now()
-        allowed_fields = ['chapter_number', 'chapter_title', 'content', 'status', 'word_count', 'description']
+        # 字段映射：API字段名 -> 数据库列名
+        field_mapping = {
+            'chapter_number': 'chapter_num',
+            'chapter_title': 'chapter_title',
+            'content': 'content',
+            'status': 'status',
+            'word_count': 'word_count',
+            'description': 'notes'
+        }
         set_clauses = []
         params = []
 
-        for field in allowed_fields:
-            if field in update_data:
-                set_clauses.append(f"{field} = %s")
-                params.append(update_data[field])
+        for api_field, db_column in field_mapping.items():
+            if api_field in update_data:
+                set_clauses.append(f"{db_column} = %s")
+                params.append(update_data[api_field])
 
         set_clauses.append("updated_at = %s")
         params.append(now)
@@ -431,6 +415,11 @@ class MySQLService:
             cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
             row = cursor.fetchone()
             if row:
+                # 映射数据库列名到API字段名
+                if 'chapter_num' in row:
+                    row['chapter_number'] = row.pop('chapter_num')
+                if 'notes' in row:
+                    row['description'] = row.pop('notes')
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
@@ -447,7 +436,7 @@ class MySQLService:
         if status:
             conditions.append("status = %s")
             params.append(status)
-        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY chapter_number ASC LIMIT %s OFFSET %s"
+        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY chapter_num ASC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         with conn.cursor() as cursor:
@@ -455,6 +444,11 @@ class MySQLService:
             rows = cursor.fetchall()
             if rows:
                 for row in rows:
+                    # 映射数据库列名到API字段名
+                    if 'chapter_num' in row:
+                        row['chapter_number'] = row.pop('chapter_num')
+                    if 'notes' in row:
+                        row['description'] = row.pop('notes')
                     row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                     row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return rows

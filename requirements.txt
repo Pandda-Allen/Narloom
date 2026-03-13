@@ -4,4 +4,7 @@ supabase
 realtime
 python-dotenv
 python-dateutil
-uuid
+pymysql
+pymongo
+requests
+Flask-CORS

@@ -1,12 +1,10 @@
-import os
-import logging
 from typing import Optional, Dict, Any, List
-from flask import current_app
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
+from .base_service import BaseService
 
-class MongoService:
+class MongoService(BaseService):
     """MongoDB 服务类（单例），负责 asset_data 集合的操作"""
 
     _instance = None
@@ -52,30 +50,9 @@ class MongoService:
             self._log(f"MongoDB initialization error: {str(e)}", level='error')
             raise
 
-    def _get_config(self, key: str, default=None) -> Optional[str]:
-        try:
-            if current_app:
-                value = current_app.config.get(key, default)
-                if value:
-                    return value
-        except RuntimeError:
-            # current_app 不可用
-            pass
-        return os.getenv(key, default)
-    
-    def _log(self, message: str, level: str = 'info'):
-        try:
-            if current_app:
-                logger = current_app.logger
-                getattr(logger, level)(message)
-                return
-        except (RuntimeError, AttributeError):
-            pass
-        logging.basicConfig(level=logging.INFO)
-        getattr(logging, level)(message)
 
     def _ensure_collection(self) -> Collection:
-        if not self._asset_data_collection:
+        if self._asset_data_collection is None:
             self._initialize()
         return self._asset_data_collection
     

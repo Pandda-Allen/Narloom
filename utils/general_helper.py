@@ -23,7 +23,12 @@ def handle_errors(f):
         try:
             return f(*args, **kwargs)
         except ValueError as ve:
+            # 业务验证错误，返回具体信息给客户端
             return error_response(str(ve), 400)
         except Exception as e:
-            return error_response(f"Internal error: {str(e)}", 500)
+            # 系统错误，记录日志但不暴露内部信息
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Internal server error in {f.__name__}: {str(e)}", exc_info=True)
+            return error_response("Internal server error", 500)
     return decorated

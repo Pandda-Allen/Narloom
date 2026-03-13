@@ -4,8 +4,9 @@ import logging
 from typing import Optional, Dict, Any, Union
 from supabase import create_client, Client
 from flask import current_app
+from .base_service import BaseService
 
-class SupabaseService:
+class SupabaseService(BaseService):
     """Supabase 服务类（单例），提供所有数据库操作的统一入口"""
 
     _instance = None
@@ -53,30 +54,7 @@ class SupabaseService:
             self._initialized = False
             self._log(f"Error initializing Supabase client: {e}", level='error')
 
-    def _get_config(self, key: str) -> Optional[str]:
-        """从 Flask 配置或环境变量获取配置值"""
-        try:
-            if current_app:
-                value = current_app.config.get(key)
-                if value:
-                    return value
-        except RuntimeError:
-            pass
-        return os.getenv(key)
 
-    def _log(self, message: str, level: str = 'info'):
-        """统一日志输出，兼容 Flask 和非 Flask 环境"""
-        try:
-            if current_app:
-                logger = current_app.logger
-                getattr(logger, level)(message)
-                return
-        except (RuntimeError, AttributeError):
-            pass
-
-        # 回退到标准 logging
-        logging.basicConfig(level=logging.INFO)
-        getattr(logging, level)(message)
 
     # ---------- 客户端保证 ----------
     def _ensure_client(self) -> Client:
@@ -98,9 +76,7 @@ class SupabaseService:
     def _execute(self, operation, *args, **kwargs):
         """统一执行数据库操作并处理异常"""
         try:
-            return operation(*args, **kwargs).execute(
-                
-            )
+            return operation(*args, **kwargs).execute()
         except Exception as e:
             self._log(f"Database operation failed: {e}", level='error')
             raise
@@ -177,15 +153,15 @@ class SupabaseService:
 
     def map_fetch_by_ids(self, work_id: str, user_id: str):
         return self._execute(
-            self._table('map').select('*').eq('work_id', work_id).eq, 'user_id', user_id
+            lambda: self._table('map').select('*').eq('work_id', work_id).eq('user_id', user_id)
         )
 
     def map_delete(self, asset_id: str, work_id: str, user_id: str):
         return self._execute(
-            self._table('map').delete()
+            lambda: self._table('map').delete()
             .eq('asset_id', asset_id)
             .eq('work_id', work_id)
-            .eq, 'user_id', user_id
+            .eq('user_id', user_id)
         )
 
     # ---------- 认证 ----------

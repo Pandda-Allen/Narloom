@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 
 def get_asset_by_id(asset_id):
     """从 MySQL 和 MongoDB 获取完整的资产信息"""
-    mysql_row = MySQLService.fetch_asset_by_id(asset_id)
+    mysql_row = MySQLService().fetch_asset_by_id(asset_id)
     if not mysql_row:
         return None
-    asset_data = MongoService.fetch_asset_data_by_asset_id(asset_id)
+    asset_data = MongoService().fetch_asset_data(asset_id)
     return {
         'asset_id': mysql_row['asset_id'],
         'user_id': mysql_row['user_id'],
@@ -52,14 +52,14 @@ def create_novel():
     novel_data = fetch_novel_data(data)
 
     try:
-        work = MySQLService.insert_work(**novel_data)
+        work = MySQLService().insert_work(**novel_data)
         work_id = work['work_id']
     except Exception as e:
         logger.error(f"Error creating novel: {str(e)}")
         return error_response('Failed to create novel', 500)
     
     try:
-        MongoService.insert_work_details(work_id, asset_ids=[], chapter_ids=[])
+        MongoService().insert_work_details(work_id, asset_ids=[], chapter_ids=[])
     except Exception as e:
         logger.error(f"Error inserting work details: {str(e)}")
         return error_response('Failed to create novel', 500)
@@ -92,7 +92,7 @@ def update_novel():
     if not update_fields:
         return error_response('No valid fields to update', 400)
     
-    updated = MySQLService.update_work(
+    updated = MySQLService().update_work(
         work_id,
         update_fields
     )
@@ -111,7 +111,7 @@ def get_novel():
     """获取单个work(novel)详情"""
     validate_required_fields(request.args, ['novel_id'])
     work_id = request.args.get('novel_id')
-    work = MySQLService.fetch_work_by_id(work_id)
+    work = MySQLService().fetch_work_by_id(work_id)
     if not work:
         return error_response('Novel not found', 404)
     return api_response(
@@ -128,10 +128,24 @@ def get_novels_by_author_id():
     validate_required_fields(request.args, ['author_id'])
     author_id = request.args.get('author_id')
     status = request.args.get('status', None)
-    limit = request.args.get('limit', 100)
-    offset = request.args.get('offset', 0)
+    limit_str = request.args.get('limit', '100')
+    offset_str = request.args.get('offset', '0')
 
-    works = MySQLService.fetch_works_by_author_id(author_id, status, limit, offset)
+    # 验证参数为非负整数
+    try:
+        limit = int(limit_str)
+        offset = int(offset_str)
+    except ValueError:
+        return error_response('limit and offset must be integers', 400)
+
+    if limit < 0 or offset < 0:
+        return error_response('limit and offset must be non-negative integers', 400)
+
+    # 限制最大数量
+    if limit > 1000:
+        limit = 1000
+
+    works = MySQLService().fetch_works_by_author_id(author_id, status, limit, offset)
     return api_response(
         success=True,
         message='Works fetched successfully',
@@ -147,12 +161,12 @@ def delete_novel():
     validate_required_fields(data, ['work_id'])
     work_id = data['work_id']
     
-    deleted = MySQLService.delete_work(work_id)
+    deleted = MySQLService().delete_work(work_id)
     if not deleted:
         return error_response('Failed to delete novel', 500)
     
     try:
-        MongoService.delete_work_details(work_id)
+        MongoService().delete_work_details(work_id)
     except Exception as e:
         logger.error(f"Error deleting work details: {str(e)}")
 
@@ -180,14 +194,14 @@ def add_asset_to_novel():
         return error_response('Asset not found', 404)
     
     try:
-        updated = MongoService.add_asset_to_work(work_id, asset_id)
+        updated = MongoService().add_asset_to_work(work_id, asset_id)
         if not updated:
-            MongoService.insert_work_details(work_id, asset_ids=[asset_id], chapter_ids=[])
+            MongoService().insert_work_details(work_id, asset_ids=[asset_id], chapter_ids=[])
     except Exception as e:
         logger.error(f"Error adding asset to work: {str(e)}")
         return error_response('Failed to add asset to work', 500)
     
-    work_details = MongoService.fetch_work_details(work_id)
+    work_details = MongoService().fetch_work_details(work_id)
     return api_response(
         success=True,
         message='Asset added to work successfully',
@@ -202,7 +216,7 @@ def get_assets_by_work_id():
     validate_required_fields(request.args, ['work_id'])
     work_id = request.args.get('work_id')
 
-    work_details = MongoService.fetch_work_details(work_id)
+    work_details = MongoService().fetch_work_details(work_id)
     if not work_details:
         return error_response('Work details not found', 404)
     
@@ -246,14 +260,14 @@ def remove_asset_from_novel():
     asset_id = data['asset_id']
 
     try:
-        removed = MongoService.remove_asset_from_work(work_id, asset_id)
+        removed = MongoService().remove_asset_from_work(work_id, asset_id)
         if not removed:
             return error_response('Failed to remove asset from work', 500)
     except Exception as e:
         logger.error(f"Error removing asset from work: {str(e)}")
         return error_response('Failed to remove asset from work', 500)
 
-    work_details = MongoService.fetch_work_details(work_id)
+    work_details = MongoService().fetch_work_details(work_id)
     return api_response(
         success=True,
         message='Asset removed from work successfully',

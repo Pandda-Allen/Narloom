@@ -39,7 +39,8 @@ class Config:
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
     
     # CORS配置
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
+    cors_origins_str = os.getenv('CORS_ORIGINS', '*')
+    CORS_ORIGINS = ['*'] if cors_origins_str == '' else cors_origins_str.split(',')
     
     # 速率限制
     RATELIMIT_DEFAULT = "100 per minute"
@@ -66,9 +67,10 @@ class Config:
     MYSQL_USER = os.getenv('MYSQL_USER', 'root')
     MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', '')
     MYSQL_DB = os.getenv('MYSQL_DB', 'narloom')
-    MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE', 'assets')
-    MYSQL_TABLE_WORKS = os.getenv('MYSQL_TABLE', 'works')
-    MYSQL_TABLE_CHAPTERS = os.getenv('MYSQL_TABLE', 'chapters')
+    MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE_ASSETS', 'assets')
+    MYSQL_TABLE_WORKS = os.getenv('MYSQL_TABLE_WORKS', 'works')
+    MYSQL_TABLE_CHAPTERS = os.getenv('MYSQL_TABLE_CHAPTERS', 'chapters')
+    MYSQL_CHARSET = os.getenv('MYSQL_CHARSET', 'utf8mb4')
 
     # Mongodb配置
     MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
