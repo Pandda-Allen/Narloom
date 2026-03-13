@@ -44,12 +44,36 @@ class MySQLService(BaseService):
                 cursorclass=pymysql.cursors.DictCursor,
                 autocommit=False # 手动控制事务
             )
+            # 确保users表存在
+            self._create_users_table_if_not_exists()
             self._initialized = True
             self._log("MySQL service initialized successfully")
         except Exception as e:
             self._log(f"Error initializing MySQL service: {e}", level='error')
             raise
-    
+
+    def _create_users_table_if_not_exists(self):
+        """创建users表（如果不存在）"""
+        conn = self._connection
+        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table} (
+                        user_id VARCHAR(100) PRIMARY KEY,
+                        name VARCHAR(255) DEFAULT '',
+                        bio TEXT,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+                conn.commit()
+                self._log(f"Table '{table}' ensured")
+        except Exception as e:
+            self._log(f"Error creating table {table}: {e}", level='error')
+            # 不抛出异常，允许连接继续
+            pass
+
     def _get_mysql_config(self) -> dict:
         """从 Flask 配置或环境变量获取 MySQL 配置"""
         return {
@@ -57,7 +81,7 @@ class MySQLService(BaseService):
             'port': int(self._get_config('MYSQL_PORT', 3306)),
             'user': self._get_config('MYSQL_USER', 'root'),
             'password': self._get_config('MYSQL_PASSWORD', ''),
-            'database': self._get_config('MYSQL_DB', 'narloom_db'),
+            'database': self._get_config('MYSQL_DB', 'narloom'),
             'charset': self._get_config('MYSQL_CHARSET', 'utf8mb4')
         }
 
@@ -466,5 +490,94 @@ class MySQLService(BaseService):
             cursor.execute(f"DELETE FROM {table} WHERE chapter_id = %s", (chapter_id,))
             conn.commit()
             return cursor.rowcount > 0
+
+    # ---------------- user 用户操作 ----------------
+    def insert_user(self, user_id: str, name: str = '', bio: str = '') -> Dict:
+        """
+        插入用户记录到MySQL数据库
+        :return: 插入的行数据(包含 user_id, name, bio, created_at, updated_at)
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        now = datetime.now()
+
+        with conn.cursor() as cursor:
+            sql = f"""
+                INSERT INTO {table} (user_id, name, bio, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (user_id, name, bio, now, now))
+            conn.commit()
+
+        return {
+            'user_id': user_id,
+            'name': name,
+            'bio': bio,
+            'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+            'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+    def update_user(self, user_id: str, update_data: Dict) -> Optional[Dict]:
+        """
+        更新用户记录到MySQL数据库(仅允许更新name, bio)
+        :param update_data: 可包含'name', 'bio'的字典
+        :return: 更新后的完整行数据，若用户不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        now = datetime.now()
+
+        # 构建 SET 语句
+        set_clauses = []
+        params = []
+        if 'name' in update_data:
+            set_clauses.append("name = %s")
+            params.append(update_data['name'])
+        if 'bio' in update_data:
+            set_clauses.append("bio = %s")
+            params.append(update_data['bio'])
+
+        if not set_clauses:
+            # 没有要更新的字段，但仍需更新时间戳
+            set_clauses.append("updated_at = %s")
+            params.append(now)
+        else:
+            set_clauses.append("updated_at = %s")
+            params.append(now)
+
+        params.append(user_id)
+
+        with conn.cursor() as cursor:
+            # 先检查用户是否存在
+            cursor.execute(f"SELECT user_id FROM {table} WHERE user_id = %s", (user_id,))
+            if not cursor.fetchone():
+                return None
+            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE user_id = %s"
+            cursor.execute(sql, params)
+            conn.commit()
+
+            # 返回更新后的完整行数据
+            cursor.execute(f"SELECT * FROM {table} WHERE user_id = %s", (user_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def fetch_user_by_id(self, user_id: str) -> Optional[Dict]:
+        """
+        根据 user_id 从MySQL数据库获取用户记录
+        :return: 用户记录字典，若不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {table} WHERE user_id = %s", (user_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
 
 mysql_service = MySQLService()

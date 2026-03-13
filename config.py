@@ -70,6 +70,7 @@ class Config:
     MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE_ASSETS', 'assets')
     MYSQL_TABLE_WORKS = os.getenv('MYSQL_TABLE_WORKS', 'works')
     MYSQL_TABLE_CHAPTERS = os.getenv('MYSQL_TABLE_CHAPTERS', 'chapters')
+    MYSQL_TABLE_USERS = os.getenv('MYSQL_TABLE_USERS', 'users')
     MYSQL_CHARSET = os.getenv('MYSQL_CHARSET', 'utf8mb4')
 
     # Mongodb配置
