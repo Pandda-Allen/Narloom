@@ -8,3 +8,4 @@ pymysql
 pymongo
 requests
 Flask-CORS
+werkzeug

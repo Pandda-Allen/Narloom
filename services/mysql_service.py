@@ -61,10 +61,13 @@ class MySQLService(BaseService):
                 cursor.execute(f"""
                     CREATE TABLE IF NOT EXISTS {table} (
                         user_id VARCHAR(100) PRIMARY KEY,
+                        email VARCHAR(255) UNIQUE,
+                        password_hash VARCHAR(255),
                         name VARCHAR(255) DEFAULT '',
                         bio TEXT,
                         created_at DATETIME NOT NULL,
-                        updated_at DATETIME NOT NULL
+                        updated_at DATETIME NOT NULL,
+                        INDEX idx_email (email)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
                 conn.commit()
@@ -492,10 +495,11 @@ class MySQLService(BaseService):
             return cursor.rowcount > 0
 
     # ---------------- user 用户操作 ----------------
-    def insert_user(self, user_id: str, name: str = '', bio: str = '') -> Dict:
+    def insert_user(self, user_id: str, name: str = '', bio: str = '',
+                    email: str = None, password_hash: str = None) -> Dict:
         """
         插入用户记录到MySQL数据库
-        :return: 插入的行数据(包含 user_id, name, bio, created_at, updated_at)
+        :return: 插入的行数据(包含 user_id, email, name, bio, created_at, updated_at)
         """
         conn = self._ensure_connection()
         table = self._get_config('MYSQL_TABLE_USERS', 'users')
@@ -503,14 +507,15 @@ class MySQLService(BaseService):
 
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (user_id, name, bio, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO {table} (user_id, email, password_hash, name, bio, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (user_id, name, bio, now, now))
+            cursor.execute(sql, (user_id, email, password_hash, name, bio, now, now))
             conn.commit()
 
         return {
             'user_id': user_id,
+            'email': email,
             'name': name,
             'bio': bio,
             'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -519,8 +524,8 @@ class MySQLService(BaseService):
 
     def update_user(self, user_id: str, update_data: Dict) -> Optional[Dict]:
         """
-        更新用户记录到MySQL数据库(仅允许更新name, bio)
-        :param update_data: 可包含'name', 'bio'的字典
+        更新用户记录到MySQL数据库(允许更新name, bio, email, password_hash)
+        :param update_data: 可包含'name', 'bio', 'email', 'password_hash'的字典
         :return: 更新后的完整行数据，若用户不存在返回 None
         """
         conn = self._ensure_connection()
@@ -536,6 +541,12 @@ class MySQLService(BaseService):
         if 'bio' in update_data:
             set_clauses.append("bio = %s")
             params.append(update_data['bio'])
+        if 'email' in update_data:
+            set_clauses.append("email = %s")
+            params.append(update_data['email'])
+        if 'password_hash' in update_data:
+            set_clauses.append("password_hash = %s")
+            params.append(update_data['password_hash'])
 
         if not set_clauses:
             # 没有要更新的字段，但仍需更新时间戳
@@ -579,5 +590,81 @@ class MySQLService(BaseService):
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
+
+    def fetch_user_by_email(self, email: str) -> Optional[Dict]:
+        """
+        根据 email 从MySQL数据库获取用户记录
+        :return: 用户记录字典，若不存在返回 None
+        """
+        conn = self._ensure_connection()
+        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {table} WHERE email = %s", (email,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def register_user(self, email: str, password: str, name: str = '', bio: str = '') -> Optional[Dict]:
+        """
+        注册新用户（使用密码哈希）
+        :return: 注册成功的用户记录，若email已存在返回 None
+        """
+        # 检查email是否已存在
+        existing_user = self.fetch_user_by_email(email)
+        if existing_user:
+            return None
+
+        # 生成密码哈希
+        try:
+            from werkzeug.security import generate_password_hash
+            password_hash = generate_password_hash(password)
+        except ImportError:
+            # 如果没有werkzeug，使用简单的哈希（仅用于开发）
+            import hashlib
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        # 生成用户ID（使用UUID）
+        import uuid
+        user_id = str(uuid.uuid4())
+
+        # 插入用户记录
+        try:
+            return self.insert_user(
+                user_id=user_id,
+                email=email,
+                password_hash=password_hash,
+                name=name,
+                bio=bio
+            )
+        except Exception as e:
+            self._log(f"Error registering user {email}: {e}", level='error')
+            return None
+
+    def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
+        """
+        验证用户邮箱和密码
+        :return: 验证成功的用户记录，失败返回 None
+        """
+        user = self.fetch_user_by_email(email)
+        if not user or not user.get('password_hash'):
+            return None
+
+        password_hash = user['password_hash']
+
+        # 验证密码
+        try:
+            from werkzeug.security import check_password_hash
+            if check_password_hash(password_hash, password):
+                return user
+        except ImportError:
+            # 如果没有werkzeug，使用简单的哈希比较（仅用于开发）
+            import hashlib
+            if password_hash == hashlib.sha256(password.encode()).hexdigest():
+                return user
+
+        return None
 
 mysql_service = MySQLService()

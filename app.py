@@ -72,8 +72,7 @@ def init_ai_service(app):
 
 
 def register_blueprints(app):
-    from api.routes.login import login_bp
-    from api.routes.user_profile import user_profile_bp
+    from api.routes.user import login_bp, user_profile_bp, register_bp
     from api.routes.work_asset_map import work_asset_map_bp
     from api.routes.work import work_bp
     from api.routes.chapter import chapter_bp
@@ -85,6 +84,7 @@ def register_blueprints(app):
 
     app.register_blueprint(login_bp, url_prefix='/login')
     app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
+    app.register_blueprint(register_bp, url_prefix='/register')
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
     app.register_blueprint(chapter_bp, url_prefix='/rest/v1/chapter')
