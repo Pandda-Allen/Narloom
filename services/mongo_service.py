@@ -41,9 +41,26 @@ class MongoService(BaseService):
             db = self._client[mongo_db]
             self._asset_data_collection = db[asset_collection]
             self._work_details_collection = db[work_details_collection]
-            # 创建索引
-            self._asset_data_collection.create_index('asset_id', unique=True)
-            self._work_details_collection.create_index('work_id', unique=True)
+
+            # 创建索引（处理已存在的情况）
+            try:
+                self._asset_data_collection.create_index('asset_id', unique=True)
+                self._log(f"Created index: {asset_collection}.asset_id (unique)")
+            except PyMongoError as e:
+                if 'already exists' in str(e):
+                    self._log(f"Index already exists: {asset_collection}.asset_id")
+                else:
+                    raise
+
+            try:
+                self._work_details_collection.create_index('work_id', unique=True)
+                self._log(f"Created index: {work_details_collection}.work_id (unique)")
+            except PyMongoError as e:
+                if 'already exists' in str(e):
+                    self._log(f"Index already exists: {work_details_collection}.work_id")
+                else:
+                    raise
+
             self._initialized = True
             self._log("MongoDB service initialized successfully")
         except Exception as e:
