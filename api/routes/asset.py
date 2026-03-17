@@ -1,46 +1,42 @@
 # api/routes/asset.py
+"""
+资产路由模块
+统一使用 MySQL/MongoDB 存储
+"""
 from flask import Blueprint, request
-from utils.response_helper import error_response, api_response, format_supabase_response
+from utils.response_helper import error_response, api_response
 from utils.general_helper import get_request_json, handle_errors, validate_required_fields
-from services.supabase_service import SupabaseService
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
-import json
 import logging
-from datetime import datetime
 
 asset_bp = Blueprint('asset', __name__)
-
-def fetch_asset_data(data):
-    if data.get('type') not in ['character', 'world']:
-        raise ValueError('Invalid asset type')
-    proc_data = {
-        'user_id': data.get('user_id', ''),
-        'asset_id': data.get('id', None),
-        'asset_type': data.get('type', ''),
-        'work_id': data.get('work_id', None),
-        'asset_data': data.get('asset_data', {})
-    }        
-    return {k: v for k, v in proc_data.items() if v is not None}
+logger = logging.getLogger(__name__)
 
 @asset_bp.route('/createNewAsset', methods=['POST'])
 @handle_errors
 def create_asset():
-    """创建新的asset（character或world）"""
+    """创建新的资产（character 或 world）"""
     data = get_request_json()
-    validate_required_fields(data, ['type', 'user_id'])  # type: character/world
+    validate_required_fields(data, ['type', 'user_id'])
 
     user_id = data.get('user_id')
     asset_type = data.get('type')
     work_id = data.get('work_id')
     asset_data = data.get('asset_data', {})
 
-    # 插入MySlQL数据库，并获取完整的行数据（包含 asset_id, created_at, updated_at）
+    # 插入 MySQL 数据库
     mysql_row = MySQLService().insert_asset(user_id, asset_type, work_id)
     asset_id = mysql_row['asset_id']
 
-    # 插入MongoDB数据库
-    MongoService().insert_asset_data(asset_id, asset_data)
+    # 插入 MongoDB 数据库
+    try:
+        MongoService().insert_asset_data(asset_id, asset_data)
+    except Exception as e:
+        logger.error(f"Error inserting asset data to MongoDB: {str(e)}")
+        # 回滚：删除 MySQL 中的数据
+        MySQLService().delete_asset(asset_id)
+        return error_response('Failed to create asset', 500)
 
     result = {
         'asset_id': mysql_row['asset_id'],
@@ -52,24 +48,22 @@ def create_asset():
         'asset_data': asset_data
     }
 
-    if asset_id:
-        return api_response(
-            success=True,
-            message='asset created successfully',
-            data=result,
-            count=1
-        )
-    return error_response('Failed to create asset', 500)
+    return api_response(
+        success=True,
+        message='Asset created successfully',
+        data=result,
+        count=1
+    )
 
 @asset_bp.route('/updateAssetById', methods=['POST'])
 @handle_errors
 def update_asset():
-    """更新asset"""
+    """更新资产"""
     data = get_request_json()
     validate_required_fields(data, ['asset_id'])
-    
+
     asset_id = data.get('asset_id')
-    
+
     mysql_updates = {}
     mongo_updates = None
 
@@ -80,25 +74,24 @@ def update_asset():
     if 'asset_data' in data:
         mongo_updates = data['asset_data']
 
-    # 更新MySQL数据库
+    # 检查资产是否存在
+    existing_asset = MySQLService().fetch_asset_by_id(asset_id)
+    if not existing_asset:
+        return error_response('Asset not found', 404)
+
+    # 更新 MySQL 数据库
     if mysql_updates:
         updated_asset = MySQLService().update_asset(asset_id, mysql_updates)
         if not updated_asset:
             return error_response('Asset not found for update', 404)
-    else:
-        existing_asset = MySQLService().fetch_asset_by_id(asset_id)
-        if not existing_asset:
-            return error_response('Asset not found for update', 404)
-    
-    # 更新MongoDB数据库
+
+    # 更新 MongoDB 数据库
     if mongo_updates is not None:
-        updated = MongoService().update_asset_data(asset_id, mongo_updates)
-        if not updated:
-            # MongoDB数据不存在，尝试插入（异常情况）
-            try:
-                MongoService().insert_asset_data(asset_id, mongo_updates)
-            except Exception as e:
-                return error_response('Failed to update asset data in MongoDB', 500)
+        try:
+            MongoService().update_asset_data(asset_id, mongo_updates)
+        except Exception as e:
+            logger.error(f"Error updating asset data in MongoDB: {str(e)}")
+            return error_response('Failed to update asset data in MongoDB', 500)
 
     final_asset = MySQLService().fetch_asset_by_id(asset_id)
     final_asset_data = MongoService().fetch_asset_data(asset_id) or {}
@@ -112,10 +105,10 @@ def update_asset():
         'updated_at': final_asset['updated_at'],
         'asset_data': final_asset_data
     }
-    
+
     return api_response(
         success=True,
-        message='asset updated successfully',
+        message='Asset updated successfully',
         data=result,
         count=1
     )
@@ -123,14 +116,14 @@ def update_asset():
 @asset_bp.route('/getAssetById', methods=['GET'])
 @handle_errors
 def get_asset():
-    """获取单个asset详情"""
+    """获取单个资产详情"""
     validate_required_fields(request.args, ['asset_id'])
 
     asset_id = request.args.get('asset_id')
     mysql_row = MySQLService().fetch_asset_by_id(asset_id)
     if not mysql_row:
         return error_response('Asset not found', 404)
-    
+
     asset_data = MongoService().fetch_asset_data(asset_id) or {}
 
     result = {
@@ -142,7 +135,7 @@ def get_asset():
         'updated_at': mysql_row['updated_at'],
         'asset_data': asset_data
     }
-    
+
     return api_response(
         success=True,
         message='Asset retrieved successfully',
@@ -153,16 +146,15 @@ def get_asset():
 @asset_bp.route('/getAssetsByUserId', methods=['GET'])
 @handle_errors
 def get_user_assets():
-    """获取asset列表，支持按类型筛选"""
+    """获取资产列表，支持按类型筛选"""
     validate_required_fields(request.args, ['user_id'])
-    
+
     user_id = request.args.get('user_id')
     asset_type = request.args.get('type', None)
     work_id = request.args.get('work_id', None)
     limit_str = request.args.get('limit', '100')
     offset_str = request.args.get('offset', '0')
 
-    # 验证参数为非负整数
     try:
         limit = int(limit_str)
         offset = int(offset_str)
@@ -172,7 +164,6 @@ def get_user_assets():
     if limit < 0 or offset < 0:
         return error_response('limit and offset must be non-negative integers', 400)
 
-    # 限制最大数量
     if limit > 1000:
         limit = 1000
 
@@ -184,7 +175,7 @@ def get_user_assets():
             data=[],
             count=0
         )
-    
+
     asset_ids = [row['asset_id'] for row in mysql_rows]
     asset_data_map = MongoService().fetch_multiple_asset_data(asset_ids)
 
@@ -210,17 +201,19 @@ def get_user_assets():
 @asset_bp.route('/deleteAssetById', methods=['POST'])
 @handle_errors
 def delete_asset():
-    """删除asset"""
+    """删除资产"""
     data = get_request_json()
     validate_required_fields(data, ['asset_id'])
     asset_id = data.get('asset_id')
 
-    # 删除MongoDB（失败不影响最终结果，但记录日志）
+    # 先删除 MongoDB 中的数据
     try:
-        MongoService().delete_asset(asset_id)
+        MongoService().delete_asset_data(asset_id)
     except Exception as e:
-        logging.error(f'Failed to delete asset data from MongoDB: {e}')
+        logger.error(f'Error deleting asset data from MongoDB: {e}')
+        # 继续执行，不阻塞删除流程
 
+    # 删除 MySQL 中的记录
     deleted = MySQLService().delete_asset(asset_id)
 
     if deleted:

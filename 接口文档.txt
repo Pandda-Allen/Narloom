@@ -1,240 +1,848 @@
-# DeepSeek的AI请求参数结构
-chat_data = {
-    "user_id": "user_123",
-    "task_name": "简单对话",
-    "task_type": "chat", # enum: enhance|abstract|generate|chat|translate|summarize|rewrite|code|analysis
-    "model": "deepseek-chat",
-    "content": {
-        "user_prompt": "请用中文介绍下人工智能的发展历史",
-        "system_prompt": "你是一个知识渊博的历史学家，擅长用简洁有趣的方式讲解复杂话题。"
-    },
-    "parameters": {
-        "temperature": 0.7,
-        "max_tokens": 500
-    },
-    "constraints": {
-        "language": "zh-CN",
-        "tone": "专业但有趣"
+# API 接口文档
+
+## 目录
+- [用户接口 (User)](#用户接口-user)
+- [资产接口 (Asset)](#资产接口-asset)
+- [作品接口 (Work)](#作品接口-work)
+- [章节接口 (Chapter)](#章节接口-chapter)
+- [AI 接口 (AI)](#ai 接口-ai)
+
+---
+
+## 用户接口 (User)
+
+### 用户注册
+- API: `POST /register/`
+- Frontend Request:
+```json
+{
+  "email": "user@example.com",        // 必填，邮箱格式
+  "password": "password123",          // 必填，至少 6 个字符
+  "name": "用户名",                    // 可选，默认为空
+  "bio": "个人简介"                    // 可选，默认为空
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Registration successful",
+  "data": {
+    "user_id": "uuid-string",
+    "email": "user@example.com",
+    "name": "用户名",
+    "bio": "个人简介",
+    "created_at": "2026-03-17 12:00:00"
+  }
+}
+```
+- Error Responses:
+  - 400: Email and password are required / Invalid email format / Password must be at least 6 characters
+  - 409: Email already registered
+
+---
+
+### 用户登录
+- API: `POST /login/`
+- Frontend Request:
+```json
+{
+  "email": "user@example.com",        // 必填
+  "password": "password123"           // 必填
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Login successful",
+  "data": {
+    "user_id": "uuid-string",
+    "email": "user@example.com",
+    "name": "用户名",
+    "bio": "个人简介",
+    "created_at": "2026-03-17 12:00:00"
+  }
+}
+```
+- Error Responses:
+  - 400: Email and password are required / Invalid email format
+  - 401: Invalid credentials
+
+---
+
+### 更新用户资料
+- API: `POST /user_profile/`
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",           // 必填
+  "name": "新用户名",                  // 可选
+  "bio": "新的个人简介"                // 可选
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "User Profile updated successfully",
+  "data": {
+    "user_id": "uuid-string",
+    "name": "新用户名",
+    "bio": "新的个人简介"
+  }
+}
+```
+- Error Responses:
+  - 400: User ID is required / No fields to update
+  - 404: User not found
+
+---
+
+## 资产接口 (Asset)
+
+### 创建新资产
+- API: `POST /rest/v1/asset/createNewAsset`
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",           // 必填
+  "type": "character",                // 必填，enum: character|world
+  "work_id": "uuid-string",           // 可选，关联的作品 ID
+  "asset_data": {                     // 可选，MongoDB 存储的详细数据
+    // character 类型示例:
+    "name": "角色名称",
+    "description": "角色描述",
+    "role": "主角",
+    "traits": {"trait1": "勇敢", "trait2": "聪明"},
+    "factions": "阵营名称",
+    "group": "分组名称",
+    "relationships": {"name": "关系描述"},
+
+    // world 类型示例:
+    "name": "地点名称",
+    "description": "地点描述",
+    "location": "地理位置"
+  }
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Asset created successfully",
+  "data": {
+    "asset_id": "uuid-string",
+    "user_id": "uuid-string",
+    "work_id": "uuid-string",
+    "asset_type": "character",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00",
+    "asset_data": {}
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (type, user_id)
+  - 500: Failed to create asset
+
+---
+
+### 更新资产
+- API: `POST /rest/v1/asset/updateAssetById`
+- Frontend Request:
+```json
+{
+  "asset_id": "uuid-string",          // 必填
+  "work_id": "uuid-string",           // 可选
+  "type": "character",                // 可选
+  "asset_data": {}                    // 可选，MongoDB 存储的详细数据
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Asset updated successfully",
+  "data": {
+    "asset_id": "uuid-string",
+    "user_id": "uuid-string",
+    "work_id": "uuid-string",
+    "asset_type": "character",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00",
+    "asset_data": {}
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (asset_id)
+  - 404: Asset not found
+  - 500: Failed to update asset data in MongoDB
+
+---
+
+### 根据 ID 获取资产
+- API: `GET /rest/v1/asset/getAssetById?asset_id=xxx`
+- Frontend Request (Query Parameters):
+```
+asset_id: uuid-string                 // 必填
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Asset retrieved successfully",
+  "data": {
+    "asset_id": "uuid-string",
+    "user_id": "uuid-string",
+    "work_id": "uuid-string",
+    "asset_type": "character",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00",
+    "asset_data": {}
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (asset_id)
+  - 404: Asset not found
+
+---
+
+### 根据用户 ID 获取资产列表
+- API: `GET /rest/v1/asset/getAssetsByUserId?user_id=xxx&type=character&work_id=xxx&limit=100&offset=0`
+- Frontend Request (Query Parameters):
+```
+user_id: uuid-string                  // 必填
+type: character|world|all             // 可选，默认为全部
+work_id: uuid-string                  // 可选，按作品筛选
+limit: 100                            // 可选，默认 100，最大 1000
+offset: 0                             // 可选，默认 0
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Assets retrieved successfully",
+  "data": [
+    {
+      "asset_id": "uuid-string",
+      "user_id": "uuid-string",
+      "work_id": "uuid-string",
+      "asset_type": "character",
+      "created_at": "2026-03-17 12:00:00",
+      "updated_at": "2026-03-17 12:00:00",
+      "asset_data": {}
     }
+  ],
+  "count": 1
 }
+```
+- Error Responses:
+  - 400: Missing required fields (user_id) / limit and offset must be integers
 
------- Asset接口 ------
-# Asset的创建请求参数结构
-/asset/createNewAsset
-asset_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "asset_id": "",                 # 资产ID(对应asset数据库中的asset_id字段)
-    "name": "",                     # 资产名称
-    "description": "",              # 资产描述
-    "type": "",                     # 资产类型（enum: character|world）
-    "created_at": "",               # 资产创建时间
-    "updated_at": "",               # 资产更新时间
-    === character类型参数 ===
-    "role": "",                     # 角色
-    traits: {
-        "trait1": "trait1",         # 特征
-        "trait2": "trait2"          # 特征
-    },
-    "factions": "",                 # 角色所属阵营
-    "group": "",                    # 角色所属分组
-    relationships: {
-        "name": "relation"          # 关系
-    },
-    === world类型参数 ===
-    "location": "",                 # 地点
-    # 剩余参数TBD
-}
+---
 
-# Asset的更新请求参数结构
-/asset/updateAssetById
-asset_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "asset_id": "",                 # 资产ID(对应asset数据库中的asset_id字段)
-    "name": "",                     # 资产名称
-    "description": "",              # 资产描述
-    "type": "",                     # 资产类型（enum: character|world）
-    "created_at": "",               # 资产创建时间
-    "updated_at": "",               # 资产更新时间
-    === character/world类型参数更新内容 ===
-}
-
-# Asset的根据asset_id获取请求参数结构
-/asset/getAssetById
-asset_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "asset_id": ""                  # 资产ID(对应asset数据库中的asset_id字段)
-    "type": ""                      # 资产类型（enum: character|world）
-}
-
-# Asset的根据user_id获取请求参数结构
-/asset/getAssetsByUserId
-asset_data = {
-    "user_id": ""                  # 用户ID(对应user数据库中的user_id字段)
-    "type": ""                     # 资产类型（enum: character|world|all）
-}
-
------- Novel接口 ------
-# Novel的创建请求参数结构
-/work/createNovel
-novel_data = {
-    "author_id": "",    # 作者ID(对应user数据库中的user_id字段)
-    "title": "",        # 小说标题
-    "genre": "",        # 小说类型
-    "tags": [],         # 标签
-    "status": "",       # 小说状态
-    "content": "",      # 小说内容
-    "word_count": "",   # 小说字数
-    "description": ""   # 小说描述
-}
-
-# Novel的更新请求参数结构
-/work/updateNovelById
-novel_data = {
-    "author_id": "",    # 作者ID(对应user数据库中的user_id字段)
-    "novel_id": "",     # 小说ID
-    "title": "",        # 小说标题
-    "genre": "",        # 小说类型
-    "tags": [],         # 标签
-    "status": "",       # 小说状态
-    "content": "",      # 小说内容
-    "word_count": "",   # 小说字数
-    "description": ""   # 小说描述
-    "created_at": "",   # 小说创建时间
-}
-
-# Novel的获取请求参数结构
-/work/getNovelById
-novel_data = {
-    "novel_id": ""      # 小说ID
-}
-
-# Novel的获取请求参数结构
-/work/getNovelByAuthorId
-novel_data = {
-    "author_id": ""     # 作者ID(对应user数据库中的user_id字段)
-}
-
------- work_asset_map接口 ------
-# work_asset_map的创建请求参数结构
-/work_asset_map/createNewMap -> /work/addAssetToNovel
-map_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "work_id": "",                  # work ID
-    "asset_id": "",                 # 资产ID
-    "asset_type": "",               # 资产类型（enum: character|world）
-    "notes": "",                    # 笔记
-}
-
-# work_asset_map的获取请求参数结构
-/work_asset_map/getAssetsByWorkId  -> /work/getAssetsByWorkId
-map_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "work_id": ""                   # work ID
-}
-return示例：
+### 删除资产
+- API: `POST /rest/v1/asset/deleteAssetById`
+- Frontend Request:
+```json
 {
-    "count": 1,
-    "data": {
-        "character": [
-            {
-                "asset_id": "cbc560d8-c0ee-46a6-9125-979a65228c90",
-                "character_name": "二六",
-                "created_at": "2026-02-10 18:28:39",
-                "description": "可爱的金渐层小猫咪",
-                "faction": "",
-                "group": "徐家",
-                "notes": "2025年7月26日出生",
-                "relationship": {
-                    "三花": "朋友",
-                    "徐嘉铭": "主人"
-                },
-                "role": "pet",
-                "traits": {
-                    "eye color": "祖母绿",
-                    "fur": "blonde",
-                    "paw color": "black"
-                },
-                "updated_at": "2026-02-10 18:28:39",
-                "user_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2"
-            }
-        ],
-        "world": []
-    },
-    "message": "Map fetched successfully",
-    "status": "success"
+  "asset_id": "uuid-string"           // 必填
 }
-
-# work_asset_map的删除请求参数结构
-/work_asset_map/deleteMapById  ->  /work/removeAssetFromNovel
-map_data = {
-    "user_id": "",                  # 用户ID(对应user数据库中的user_id字段)
-    "asset_id": "",                 # 资产ID
-    "work_id": ""                   # work ID
-}
-
------- chapter接口 ------
-# novel_chapter的创建请求参数结构
-/chapter/createChapter
-chapter_data = {
-    "novel_id": "",                 # 章节所属的novel ID
-    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
-    "chapter_number": 1,            # 章节编号
-    "chapter_title": "",            # 章节标题
-    "content": "",                  # 章节内容
-    "word_count": 0,                # 章节字数
-    "description": ""               # 章节描述
-}
-
-# novel_chapter的更新请求参数结构
-/chapter/updateChapterById
-chapter_data = {
-    "chapter_id": "",               # 章节ID
-    "novel_id": "",                 # 章节所属的novel ID
-    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
-    "chapter_number": 1,            # 章节编号
-    "chapter_title": "",            # 章节标题
-    "content": "",                  # 章节内容
-    "word_count": 0,                # 章节字数
-    "description": ""               # 章节描述
-}
-
-# novel_chapter的获取请求参数结构
-/chapter/getChapterByNovelId
-chapter_data = {
-    "novel_id": "",                 # 章节所属的novel ID
-    "author_id": "",                # 用户ID(对应user数据库中的user_id字段)
-}
-return示例：
+```
+- Backend Response (Success):
+```json
 {
-    "count": 2,
-    "data": [
-        {
-            "author_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2",
-            "chapter_id": "4f93abcf-940f-4ee3-bc79-bf396456707b",
-            "chapter_number": 1,
-            "chapter_title": "九尾狐显世",
-            "content": "波风水门单挑九喇嘛，夫妻二人献祭将其封印",
-            "created_at": "2026-02-11 17:33:12",
-            "description": "trial",
-            "novel_id": "c2c7dda1-18be-4c13-866a-fcddedab0257",
-            "status": "trial",
-            "updated_at": "2026-02-11 17:38:33",
-            "word_count": 9
-        },
-        {
-            "author_id": "17047e4b-0556-420a-a4b2-62e9c43d17f2",
-            "chapter_id": "60bacb21-6c69-4723-a18b-14ce1f9abfb4",
-            "chapter_number": 2,
-            "chapter_title": "鸣人入学",
-            "content": "孤儿鸣人在伊鲁卡老师的教导下立志成为一名忍者",
-            "created_at": "2026-02-11 17:41:13",
-            "description": "trial",
-            "novel_id": "c2c7dda1-18be-4c13-866a-fcddedab0257",
-            "status": "trial",
-            "updated_at": "2026-02-11 17:41:13",
-            "word_count": 9
-        }
+  "status": "success",
+  "message": "Asset deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (asset_id)
+  - 404: Asset not found or delete failed
+
+---
+
+## 作品接口 (Work)
+
+### 创建新作品 (Novel)
+- API: `POST /rest/v1/work/createNovel`
+- Frontend Request:
+```json
+{
+  "author_id": "uuid-string",         // 必填
+  "title": "小说标题",                 // 必填
+  "genre": "玄幻",                    // 可选，默认空
+  "tags": ["标签 1", "标签 2"],        // 可选，默认 []
+  "status": "draft",                  // 可选，默认 draft
+  "chapter_count": 0,                 // 可选，默认 0
+  "word_count": 0,                    // 可选，默认 0
+  "description": "小说描述"            // 可选，默认空
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Novel created successfully",
+  "data": {
+    "work_id": "uuid-string",
+    "author_id": "uuid-string",
+    "title": "小说标题",
+    "genre": "玄幻",
+    "tags": ["标签 1", "标签 2"],
+    "status": "draft",
+    "chapter_count": 0,
+    "word_count": 0,
+    "description": "小说描述",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00",
+    "asset_ids": [],
+    "chapter_ids": []
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (author_id, title)
+  - 500: Failed to create novel
+
+---
+
+### 更新作品
+- API: `POST /rest/v1/work/updateNovelById`
+- Frontend Request:
+```json
+{
+  "work_id": "uuid-string",           // 必填
+  "title": "新标题",                   // 可选
+  "genre": "新类型",                   // 可选
+  "tags": ["新标签"],                  // 可选
+  "status": "published",              // 可选
+  "chapter_count": 10,                // 可选
+  "word_count": 50000,                // 可选
+  "description": "新描述"              // 可选
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Work updated successfully",
+  "data": {
+    "work_id": "uuid-string",
+    "author_id": "uuid-string",
+    "title": "新标题",
+    "genre": "新类型",
+    "tags": ["新标签"],
+    "status": "published",
+    "chapter_count": 10,
+    "word_count": 50000,
+    "description": "新描述",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00"
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id) / No valid fields to update
+  - 500: Failed to update novel
+
+---
+
+### 根据 ID 获取作品
+- API: `GET /rest/v1/work/getNovelById?novel_id=xxx`
+- Frontend Request (Query Parameters):
+```
+novel_id: uuid-string                 // 必填
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Work fetched successfully",
+  "data": {
+    "work_id": "uuid-string",
+    "author_id": "uuid-string",
+    "title": "小说标题",
+    "genre": "玄幻",
+    "tags": ["标签 1", "标签 2"],
+    "status": "draft",
+    "chapter_count": 0,
+    "word_count": 0,
+    "description": "小说描述",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00",
+    "asset_ids": [],
+    "chapter_ids": []
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (novel_id)
+  - 404: Novel not found
+
+---
+
+### 根据作者 ID 获取作品列表
+- API: `GET /rest/v1/work/getNovelsByAuthorId?author_id=xxx&status=draft&limit=100&offset=0`
+- Frontend Request (Query Parameters):
+```
+author_id: uuid-string                // 必填
+status: draft|published|...           // 可选，按状态筛选
+limit: 100                            // 可选，默认 100，最大 1000
+offset: 0                             // 可选，默认 0
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Works fetched successfully",
+  "data": [
+    {
+      "work_id": "uuid-string",
+      "author_id": "uuid-string",
+      "title": "小说标题",
+      "genre": "玄幻",
+      "tags": ["标签 1", "标签 2"],
+      "status": "draft",
+      "chapter_count": 0,
+      "word_count": 0,
+      "description": "小说描述",
+      "created_at": "2026-03-17 12:00:00",
+      "updated_at": "2026-03-17 12:00:00"
+    }
+  ],
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (author_id)
+
+---
+
+### 删除作品
+- API: `POST /rest/v1/work/deleteNovelById`
+- Frontend Request:
+```json
+{
+  "work_id": "uuid-string"            // 必填
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Work deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id)
+  - 500: Failed to delete novel
+
+---
+
+### 添加资产到作品
+- API: `POST /rest/v1/work/addAssetToNovel`
+- Frontend Request:
+```json
+{
+  "work_id": "uuid-string",           // 必填
+  "asset_id": "uuid-string"           // 必填
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Asset added to work successfully",
+  "data": {
+    "work_id": "uuid-string",
+    "asset_ids": ["asset-uuid-1", "asset-uuid-2"]
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id, asset_id)
+  - 404: Asset not found
+  - 500: Failed to add asset to work
+
+---
+
+### 获取作品的资产列表
+- API: `GET /rest/v1/work/getAssetsByWorkId?work_id=xxx`
+- Frontend Request (Query Parameters):
+```
+work_id: uuid-string                  // 必填
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Assets fetched successfully",
+  "data": {
+    "character": [
+      {
+        "asset_id": "uuid-string",
+        "user_id": "uuid-string",
+        "work_id": "uuid-string",
+        "asset_type": "character",
+        "created_at": "2026-03-17 12:00:00",
+        "updated_at": "2026-03-17 12:00:00",
+        "asset_data": {}
+      }
     ],
-    "message": "Chapters fetched successfully",
-    "status": "success"
+    "world": []
+  },
+  "count": 1
 }
+```
+- Error Responses:
+  - 400: Missing required fields (work_id)
+
+---
+
+### 从作品移除资产
+- API: `POST /rest/v1/work/removeAssetFromNovel`
+- Frontend Request:
+```json
+{
+  "work_id": "uuid-string",           // 必填
+  "asset_id": "uuid-string"           // 必填
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Asset removed from work successfully",
+  "data": {
+    "work_id": "uuid-string",
+    "asset_ids": ["asset-uuid-1"]
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id, asset_id)
+  - 500: Failed to remove asset from work
+
+---
+
+## 章节接口 (Chapter)
+
+### 创建新章节
+- API: `POST /rest/v1/chapter/createChapter`
+- Frontend Request:
+```json
+{
+  "work_id": "uuid-string",           // 必填，作品 ID
+  "author_id": "uuid-string",         // 必填，作者 ID
+  "chapter_number": 1,                // 必填，章节编号
+  "chapter_title": "第一章 标题",      // 可选，默认空
+  "content": "章节内容",               // 可选，默认空
+  "status": "draft",                  // 可选，默认 draft
+  "word_count": 1000,                 // 可选，默认 0
+  "description": "章节描述"            // 可选，默认空
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Chapter created successfully",
+  "data": {
+    "chapter_id": "uuid-string",
+    "work_id": "uuid-string",
+    "author_id": "uuid-string",
+    "chapter_number": 1,
+    "chapter_title": "第一章 标题",
+    "content": "章节内容",
+    "status": "draft",
+    "word_count": 1000,
+    "description": "章节描述",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00"
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id, author_id, chapter_number)
+  - 500: Failed to insert chapter / Failed to update work details
+
+---
+
+### 更新章节
+- API: `POST /rest/v1/chapter/updateChapterById`
+- Frontend Request:
+```json
+{
+  "chapter_id": "uuid-string",        // 必填
+  "chapter_number": 1,                // 可选
+  "chapter_title": "新标题",           // 可选
+  "content": "新内容",                 // 可选
+  "status": "published",              // 可选
+  "word_count": 2000,                 // 可选
+  "description": "新描述"              // 可选
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Chapter updated successfully",
+  "data": {
+    "chapter_id": "uuid-string",
+    "work_id": "uuid-string",
+    "author_id": "uuid-string",
+    "chapter_number": 1,
+    "chapter_title": "新标题",
+    "content": "新内容",
+    "status": "published",
+    "word_count": 2000,
+    "description": "新描述",
+    "created_at": "2026-03-17 12:00:00",
+    "updated_at": "2026-03-17 12:00:00"
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (chapter_id) / No fields to update
+  - 500: Failed to update chapter
+
+---
+
+### 根据作品 ID 获取章节列表
+- API: `GET /rest/v1/chapter/getChapterByNovelId?work_id=xxx&status=draft&limit=100&offset=0`
+- Frontend Request (Query Parameters):
+```
+work_id: uuid-string                  // 必填
+status: draft|published|...           // 可选，按状态筛选
+limit: 100                            // 可选，默认 100，最大 1000
+offset: 0                             // 可选，默认 0
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Chapters fetched successfully",
+  "data": [
+    {
+      "chapter_id": "uuid-string",
+      "work_id": "uuid-string",
+      "author_id": "uuid-string",
+      "chapter_number": 1,
+      "chapter_title": "第一章 标题",
+      "content": "章节内容",
+      "status": "draft",
+      "word_count": 1000,
+      "description": "章节描述",
+      "created_at": "2026-03-17 12:00:00",
+      "updated_at": "2026-03-17 12:00:00"
+    }
+  ],
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (work_id)
+
+---
+
+### 删除章节
+- API: `POST /rest/v1/chapter/deleteChapterById`
+- Frontend Request:
+```json
+{
+  "chapter_id": "uuid-string"         // 必填
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Chapter deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (chapter_id)
+  - 404: Chapter not found
+
+---
+
+## AI 接口 (AI)
+
+### 处理 AI 请求
+- API: `POST /rest/v1/ai/process`
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",           // 可选
+  "task_name": "任务名称",             // 可选
+  "task_type": "chat",                // 必填，enum: enhance|abstract|generate|chat|translate|summarize|rewrite|code|analysis
+  "model": "deepseek-chat",           // 可选，默认 deepseek-chat
+  "content": {
+    "user_prompt": "用户提示词",        // 必填
+    "system_prompt": "系统提示词"       // 可选
+  },
+  "parameters": {
+    "temperature": 0.7,               // 可选，默认 0.7
+    "max_tokens": 500                 // 可选，默认 500
+  },
+  "constraints": {
+    "language": "zh-CN",              // 可选
+    "tone": "专业但有趣"               // 可选
+  }
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "AI request processed successfully",
+  "data": {
+    "task_id": "task-uuid",
+    "result": "AI 生成的内容",
+    "usage": {
+      "prompt_tokens": 100,
+      "completion_tokens": 200,
+      "total_tokens": 300
+    }
+  },
+  "endpoint": "/ai/process",
+  "request_timestamp": "2026-03-17T12:00:00"
+}
+```
+- Error Responses:
+  - 503: AI Service not initialized
+
+---
+
+### 获取支持的模型列表
+- API: `GET /rest/v1/ai/models`
+- Frontend Request: 无
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Models fetched successfully",
+  "data": {
+    "models": ["deepseek-chat", "deepseek-coder"]
+  },
+  "count": 2
+}
+```
+
+---
+
+### 健康检查
+- API: `GET /rest/v1/ai/health`
+- Frontend Request: 无
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Health check completed",
+  "data": {
+    "service": "deepseek-ai",
+    "initialized": true,
+    "api_key_configured": true
+  }
+}
+```
+
+---
+
+### 测试 AI 接口
+- API: `POST /rest/v1/ai/test`
+- Frontend Request: 无 (使用内置测试数据)
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "AI test completed",
+  "data": {
+    "test_result": {
+      "success": true,
+      "result": "AI 测试响应"
+    }
+  }
+}
+```
+
+---
+
+### 获取 AI 能力
+- API: `GET /rest/v1/ai/capabilities`
+- Frontend Request: 无
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Capabilities fetched successfully",
+  "data": {
+    "capabilities": {
+      "supported_tasks": [
+        "chat", "enhance", "abstract", "generate",
+        "translate", "summarize", "rewrite", "code", "analysis"
+      ],
+      "supported_languages": ["zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "es-ES", "de-DE", "ru-RU"],
+      "max_tokens": 4096,
+      "supports_streaming": false,
+      "provider": "DeepSeek",
+      "api_version": "v1"
+    }
+  }
+}
+```
+
+---
+
+## 通用响应格式
+
+### 成功响应
+```json
+{
+  "status": "success",
+  "message": "操作成功描述",
+  "data": {},
+  "count": 1
+}
+```
+
+### 错误响应
+```json
+{
+  "status": "error",
+  "message": "错误描述",
+  "code": 400
+}
+```
+
+## 状态码说明
+| 状态码 | 说明 |
+|--------|------|
+| 200 | 请求成功 |
+| 400 | 请求参数错误 |
+| 401 | 认证失败 |
+| 403 | 权限不足 |
+| 404 | 资源未找到 |
+| 409 | 资源冲突 (如邮箱已注册) |
+| 500 | 服务器内部错误 |
+| 503 | 服务不可用 |

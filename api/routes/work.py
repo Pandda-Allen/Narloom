@@ -1,9 +1,11 @@
 # api/routes/work.py
+"""
+作品路由模块
+统一使用 MySQL/MongoDB 存储
+"""
 from flask import Blueprint, request
-from api.routes import asset
-from utils.response_helper import error_response, api_response, format_supabase_response
+from utils.response_helper import error_response, api_response
 from utils.general_helper import handle_errors, get_request_json, validate_required_fields
-from services.supabase_service import SupabaseService
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
 import json, logging
@@ -31,7 +33,6 @@ def get_asset_by_id(asset_id):
 def fetch_novel_data(data):
     novel_data = {
         'author_id': data.get('author_id'),
-        'novel_id': data.get('novel_id', None),
         'title': data.get('title'),
         'genre': data.get('genre', ''),
         'tags': data.get('tags', []),
@@ -45,7 +46,7 @@ def fetch_novel_data(data):
 @work_bp.route('/createNovel', methods=['POST'])
 @handle_errors
 def create_novel():
-    """创建新的work(novel)"""
+    """创建新的作品 (novel)"""
     data = get_request_json()
     validate_required_fields(data, ['author_id', 'title'])
 
@@ -57,17 +58,29 @@ def create_novel():
     except Exception as e:
         logger.error(f"Error creating novel: {str(e)}")
         return error_response('Failed to create novel', 500)
-    
+
     try:
         MongoService().insert_work_details(work_id, asset_ids=[], chapter_ids=[])
     except Exception as e:
         logger.error(f"Error inserting work details: {str(e)}")
         return error_response('Failed to create novel', 500)
 
+    # 获取完整的作品信息
+    full_work = MySQLService().fetch_work_by_id(work_id)
+    full_work['asset_ids'] = []
+    full_work['chapter_ids'] = []
+
+    return api_response(
+        success=True,
+        message='Novel created successfully',
+        data=full_work,
+        count=1
+    )
+
 @work_bp.route('/updateNovelById', methods=['POST'])
 @handle_errors
 def update_novel():
-    """更新work(novel)"""
+    """更新作品 (novel)"""
     data = get_request_json()
     validate_required_fields(data, ['work_id'])
 
@@ -91,13 +104,11 @@ def update_novel():
 
     if not update_fields:
         return error_response('No valid fields to update', 400)
-    
-    updated = MySQLService().update_work(
-        work_id,
-        update_fields
-    )
+
+    updated = MySQLService().update_work(work_id, update_fields)
     if not updated:
         return error_response('Failed to update novel', 500)
+
     return api_response(
         success=True,
         message='Work updated successfully',
@@ -108,12 +119,22 @@ def update_novel():
 @work_bp.route('/getNovelById', methods=['GET'])
 @handle_errors
 def get_novel():
-    """获取单个work(novel)详情"""
+    """获取单个作品详情"""
     validate_required_fields(request.args, ['novel_id'])
     work_id = request.args.get('novel_id')
     work = MySQLService().fetch_work_by_id(work_id)
     if not work:
         return error_response('Novel not found', 404)
+
+    # 从 MongoDB 获取关联的 IDs
+    work_details = MongoService().fetch_work_details(work_id)
+    if work_details:
+        work['asset_ids'] = work_details.get('asset_ids', [])
+        work['chapter_ids'] = work_details.get('chapter_ids', [])
+    else:
+        work['asset_ids'] = []
+        work['chapter_ids'] = []
+
     return api_response(
         success=True,
         message='Work fetched successfully',
@@ -124,14 +145,13 @@ def get_novel():
 @work_bp.route('/getNovelsByAuthorId', methods=['GET'])
 @handle_errors
 def get_novels_by_author_id():
-    """根据author_id获取work(novel)列表"""
+    """根据作者 ID 获取作品列表"""
     validate_required_fields(request.args, ['author_id'])
     author_id = request.args.get('author_id')
     status = request.args.get('status', None)
     limit_str = request.args.get('limit', '100')
     offset_str = request.args.get('offset', '0')
 
-    # 验证参数为非负整数
     try:
         limit = int(limit_str)
         offset = int(offset_str)
@@ -141,7 +161,6 @@ def get_novels_by_author_id():
     if limit < 0 or offset < 0:
         return error_response('limit and offset must be non-negative integers', 400)
 
-    # 限制最大数量
     if limit > 1000:
         limit = 1000
 
@@ -156,15 +175,15 @@ def get_novels_by_author_id():
 @work_bp.route('/deleteNovelById', methods=['POST'])
 @handle_errors
 def delete_novel():
-    """删除work(novel)"""
+    """删除作品"""
     data = get_request_json()
     validate_required_fields(data, ['work_id'])
     work_id = data['work_id']
-    
+
     deleted = MySQLService().delete_work(work_id)
     if not deleted:
         return error_response('Failed to delete novel', 500)
-    
+
     try:
         MongoService().delete_work_details(work_id)
     except Exception as e:
@@ -177,22 +196,22 @@ def delete_novel():
         count=1
     )
 
-# ---------- work_details关联操作 ----------
+# ---------- work_details 关联操作 ----------
 @work_bp.route('/addAssetToNovel', methods=['POST'])
 @handle_errors
 def add_asset_to_novel():
-    """将asset关联到work(novel)"""
+    """将 asset 关联到作品"""
     data = get_request_json()
     validate_required_fields(data, ['work_id', 'asset_id'])
 
     work_id = data['work_id']
     asset_id = data['asset_id']
-    
-    # 验证asset是否存在
+
+    # 验证 asset 是否存在
     asset = get_asset_by_id(asset_id)
     if not asset:
         return error_response('Asset not found', 404)
-    
+
     try:
         updated = MongoService().add_asset_to_work(work_id, asset_id)
         if not updated:
@@ -200,7 +219,7 @@ def add_asset_to_novel():
     except Exception as e:
         logger.error(f"Error adding asset to work: {str(e)}")
         return error_response('Failed to add asset to work', 500)
-    
+
     work_details = MongoService().fetch_work_details(work_id)
     return api_response(
         success=True,
@@ -212,14 +231,19 @@ def add_asset_to_novel():
 @work_bp.route('/getAssetsByWorkId', methods=['GET'])
 @handle_errors
 def get_assets_by_work_id():
-    """根据work_id获取关联的asset列表"""
+    """根据 work_id 获取关联的资产列表"""
     validate_required_fields(request.args, ['work_id'])
     work_id = request.args.get('work_id')
 
     work_details = MongoService().fetch_work_details(work_id)
     if not work_details:
-        return error_response('Work details not found', 404)
-    
+        return api_response(
+            success=True,
+            message='No assets found for this work',
+            data={},
+            count=0
+        )
+
     asset_ids = work_details.get('asset_ids', [])
     if not asset_ids:
         return api_response(
@@ -241,7 +265,6 @@ def get_assets_by_work_id():
         if asset_type in result:
             result[asset_type].append(asset)
 
-
     return api_response(
         success=True,
         message='Assets fetched successfully',
@@ -252,7 +275,7 @@ def get_assets_by_work_id():
 @work_bp.route('/removeAssetFromNovel', methods=['POST'])
 @handle_errors
 def remove_asset_from_novel():
-    """从work(novel)中移除asset"""
+    """从作品中移除资产"""
     data = get_request_json()
     validate_required_fields(data, ['work_id', 'asset_id'])
 

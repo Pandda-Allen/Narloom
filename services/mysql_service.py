@@ -1,38 +1,51 @@
+"""
+MySQL 服务类，提供数据库连接和基本操作。
+使用单例模式，线程安全。
+"""
 import uuid
 import json
+import threading
 from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 import pymysql
 import pymysql.cursors
 from .base_service import BaseService
+
+# 表名白名单，防止 SQL 注入
+TABLE_WHITELIST = {
+    'users', 'assets', 'works', 'chapters'
+}
 
 class MySQLService(BaseService):
     """MySQL 服务类，提供数据库连接和基本操作"""
 
     _instance = None
+    _lock = threading.Lock()
     _connection = None
     _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     # ---------- 初始化 ----------
     def init_app(self, app):
         with app.app_context():
             self._initialize()
-    
+
     def _initialize(self):
         if self._initialized:
             return
-        
+
         # 获取配置
         config = self._get_mysql_config()
         if not all(config.values()):
             self._log("MySQL configuration incomplete", level='error')
             raise RuntimeError("MySQL configuration incomplete")
-        
+
         try:
             self._connection = pymysql.connect(
                 host=config['host'],
@@ -42,24 +55,31 @@ class MySQLService(BaseService):
                 database=config['database'],
                 charset=config['charset'],
                 cursorclass=pymysql.cursors.DictCursor,
-                autocommit=False # 手动控制事务
+                autocommit=False
             )
-            # 确保users表存在
+            # 确保 users 表存在
             self._create_users_table_if_not_exists()
+            self._create_tables_if_not_exists()
             self._initialized = True
             self._log("MySQL service initialized successfully")
         except Exception as e:
             self._log(f"Error initializing MySQL service: {e}", level='error')
             raise
 
+    def _validate_table_name(self, table_name: str) -> str:
+        """验证表名是否在白名单中"""
+        if table_name not in TABLE_WHITELIST:
+            raise ValueError(f"Invalid table name: {table_name}")
+        return table_name
+
     def _create_users_table_if_not_exists(self):
-        """创建users表（如果不存在）"""
+        """创建 users 表（如果不存在）"""
         conn = self._connection
-        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        table = 'users'
         try:
             with conn.cursor() as cursor:
-                cursor.execute(f"""
-                    CREATE TABLE IF NOT EXISTS {table} (
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
                         user_id VARCHAR(100) PRIMARY KEY,
                         email VARCHAR(255) UNIQUE,
                         password_hash VARCHAR(255),
@@ -71,10 +91,74 @@ class MySQLService(BaseService):
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
                 conn.commit()
-                self._log(f"Table '{table}' ensured")
+                self._log("Table 'users' ensured")
         except Exception as e:
-            self._log(f"Error creating table {table}: {e}", level='error')
-            # 不抛出异常，允许连接继续
+            self._log(f"Error creating table users: {e}", level='error')
+            pass
+
+    def _create_tables_if_not_exists(self):
+        """创建所有必要的表（如果不存在）"""
+        conn = self._connection
+        try:
+            with conn.cursor() as cursor:
+                # 创建 assets 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS assets (
+                        asset_id VARCHAR(100) PRIMARY KEY,
+                        user_id VARCHAR(100) NOT NULL,
+                        work_id VARCHAR(100),
+                        asset_type VARCHAR(50) NOT NULL,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_work_id (work_id),
+                        INDEX idx_asset_type (asset_type)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                # 创建 works 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS works (
+                        work_id VARCHAR(100) PRIMARY KEY,
+                        author_id VARCHAR(100) NOT NULL,
+                        title VARCHAR(255) NOT NULL,
+                        genre VARCHAR(100) DEFAULT '',
+                        tags TEXT,
+                        status VARCHAR(50) DEFAULT 'draft',
+                        chapter_count INT DEFAULT 0,
+                        word_count INT DEFAULT 0,
+                        description TEXT,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        INDEX idx_author_id (author_id),
+                        INDEX idx_status (status)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                # 创建 chapters 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS chapters (
+                        chapter_id VARCHAR(100) PRIMARY KEY,
+                        work_id VARCHAR(100) NOT NULL,
+                        author_id VARCHAR(100) NOT NULL,
+                        chapter_num INT NOT NULL,
+                        chapter_title VARCHAR(255) DEFAULT '',
+                        content TEXT,
+                        status VARCHAR(50) DEFAULT 'draft',
+                        word_count INT DEFAULT 0,
+                        notes TEXT,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        INDEX idx_work_id (work_id),
+                        INDEX idx_author_id (author_id),
+                        INDEX idx_chapter_num (work_id, chapter_num)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                conn.commit()
+                self._log("All required tables ensured with indexes")
+        except Exception as e:
+            self._log(f"Error creating tables: {e}", level='error')
             pass
 
     def _get_mysql_config(self) -> dict:
@@ -88,9 +172,7 @@ class MySQLService(BaseService):
             'charset': self._get_config('MYSQL_CHARSET', 'utf8mb4')
         }
 
-    
-
-    # ---------------- 链接保证 ----------------
+    # ---------------- 连接保证 ----------------
     def _ensure_connection(self):
         """确保连接有效，若断开则重连"""
         if not self._connection:
@@ -100,15 +182,14 @@ class MySQLService(BaseService):
         except Exception:
             self._initialize()
         return self._connection
-    
+
     # ---------------- asset 资产操作 ----------------
-    def insert_asset(self, user_id: str, asset_type:str, work_id: str = None) -> Dict:
+    def insert_asset(self, user_id: str, asset_type: str, work_id: str = None) -> Dict:
         """
-        插入资产(asset)记录到MySQL数据库
-        :return: 插入的行数据(包含 asset_id, created_at, updated_at)
+        插入资产 (asset) 记录到 MySQL 数据库
         """
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_ASSETS', 'assets')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_ASSETS', 'assets'))
         asset_id = str(uuid.uuid4())
         now = datetime.now()
 
@@ -128,18 +209,15 @@ class MySQLService(BaseService):
             'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
         }
-    
+
     def update_asset(self, asset_id: str, update_data: Dict) -> Optional[Dict]:
         """
-        更新资产(asset)记录到MySQL数据库(仅允许更新work_id, asset_type)
-        :param: update_data: 可包含'work_id', 'asset_type'的字典
-        :return: 更新后的完整行数据，若资产不存在返回 None
+        更新资产 (asset) 记录
         """
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_ASSETS', 'assets')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_ASSETS', 'assets'))
         now = datetime.now()
 
-        # 构建 SET 语句
         set_clauses = []
         params = []
         if 'work_id' in update_data:
@@ -148,19 +226,17 @@ class MySQLService(BaseService):
         if 'asset_type' in update_data:
             set_clauses.append("asset_type = %s")
             params.append(update_data['asset_type'])
-        
+
         if not set_clauses:
-            # 没有要更新的字段，但仍需更新时间戳
             set_clauses.append("updated_at = %s")
             params.append(now)
         else:
             set_clauses.append("updated_at = %s")
             params.append(now)
-        
+
         params.append(asset_id)
 
         with conn.cursor() as cursor:
-            # 先检查资产是否存在
             cursor.execute(f"SELECT asset_id FROM {table} WHERE asset_id = %s", (asset_id,))
             if not cursor.fetchone():
                 return None
@@ -168,49 +244,40 @@ class MySQLService(BaseService):
             cursor.execute(sql, params)
             conn.commit()
 
-            # 返回更新后的完整行数据
             cursor.execute(f"SELECT * FROM {table} WHERE asset_id = %s", (asset_id,))
             return cursor.fetchone()
-    
+
     def delete_asset(self, asset_id: str) -> bool:
-        """
-        删除资产(asset)记录从MySQL数据库
-        """
+        """删除资产记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_ASSETS', 'assets')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_ASSETS', 'assets'))
 
         with conn.cursor() as cursor:
             sql = f"DELETE FROM {table} WHERE asset_id = %s"
             cursor.execute(sql, (asset_id,))
             conn.commit()
             return cursor.rowcount > 0
-        
+
     def fetch_asset_by_id(self, asset_id: str) -> Optional[Dict]:
-        """
-        根据 asset_id 从MySQL数据库获取资产(asset)记录
-        :return: 资产记录字典，若不存在返回 None
-        """
+        """根据 asset_id 获取资产记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_ASSETS', 'assets')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_ASSETS', 'assets'))
 
         with conn.cursor() as cursor:
             sql = f"SELECT * FROM {table} WHERE asset_id = %s"
             cursor.execute(sql, (asset_id,))
             return cursor.fetchone()
-        
+
     def fetch_assets(self, user_id: str, asset_type: Optional[str] = None, work_id: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict]:
-        """
-        根据条件从MySQL数据库获取资产(asset)记录列表
-        :return: 资产记录字典列表
-        """
+        """根据条件获取资产列表"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_ASSETS', 'assets')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_ASSETS', 'assets'))
         conditions = ["user_id = %s"]
         params = [user_id]
 
         if asset_type:
             conditions.append("asset_type = %s")
-            params.append(asset_type)        
+            params.append(asset_type)
         if work_id:
             conditions.append("work_id = %s")
             params.append(work_id)
@@ -221,17 +288,14 @@ class MySQLService(BaseService):
         with conn.cursor() as cursor:
             cursor.execute(sql, params)
             return cursor.fetchall()
-        
+
     # ---------------- work 作品操作 ----------------
     def insert_work(self, author_id: str, title: str, genre: str = '', tags=None,
                     status: str = 'draft', chapter_count: int = 0, word_count: int = 0,
                     description: str = '') -> Dict:
-        """
-        插入作品(work)记录到MySQL数据库
-        :return: 插入的行数据(包含 work_id, created_at, updated_at)
-        """
+        """插入作品记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
         work_id = str(uuid.uuid4())
         now = datetime.now()
         if tags is not None and not isinstance(tags, str):
@@ -257,14 +321,11 @@ class MySQLService(BaseService):
             'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S"),
         }
-    
+
     def update_work(self, work_id: str, update_data: Dict) -> Optional[Dict]:
-        """
-        更新作品(work)记录到MySQL数据库
-        :return: 更新的行数据(包含 work_id, updated_at)
-        """
+        """更新作品记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
         now = datetime.now()
         allowed_fields = ['title', 'genre', 'status', 'word_count', 'description']
         set_clauses = []
@@ -273,13 +334,11 @@ class MySQLService(BaseService):
             if field in update_data:
                 set_clauses.append(f"{field} = %s")
                 params.append(update_data[field])
-        
+
         set_clauses.append("updated_at = %s")
         params.append(now)
-        
         params.append(work_id)
         with conn.cursor() as cursor:
-            # 先检查作品是否存在
             cursor.execute(f"SELECT work_id FROM {table} WHERE work_id = %s", (work_id,))
             if not cursor.fetchone():
                 return None
@@ -287,21 +346,17 @@ class MySQLService(BaseService):
             cursor.execute(sql, params)
             conn.commit()
 
-            # 返回更新后的完整行数据
             cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
             row = cursor.fetchone()
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
-    
+
     def fetch_work_by_id(self, work_id: str) -> Optional[Dict]:
-        """
-        根据 work_id 从MySQL数据库获取作品(work)记录
-        :return: 作品记录字典，若不存在返回 None
-        """
+        """根据 work_id 获取作品记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {table} WHERE work_id = %s", (work_id,))
@@ -313,12 +368,9 @@ class MySQLService(BaseService):
 
     def fetch_works_by_author_id(self, author_id: str, status: Optional[str] = None,
                                  limit: int = 100, offset: int = 0) -> List[Dict]:
-        """
-        根据作者ID从MySQL数据库获取作者的章节列表
-        :return: 章节列表字典列表
-        """
+        """根据作者 ID 获取作品列表"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
         conditions = ["author_id = %s"]
         params = [author_id]
         if status:
@@ -337,12 +389,9 @@ class MySQLService(BaseService):
             return rows
 
     def delete_work(self, work_id: str) -> bool:
-        """
-        根据 work_id 从MySQL数据库删除作品(work)记录
-        :return: 删除成功返回 True，否则返回 False
-        """
+        """删除作品记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_WORKS', 'works')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"DELETE FROM {table} WHERE work_id = %s", (work_id,))
@@ -353,12 +402,9 @@ class MySQLService(BaseService):
     def insert_chapter(self, work_id: str, author_id: str, chapter_number: int,
                        chapter_title: str = '', content: str = '', status: str = 'draft',
                        word_count: int = 0, description: str = '') -> Dict:
-        """
-        向MySQL数据库插入章节记录
-        :return: 章节记录字典
-        """
+        """插入章节记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
         chapter_id = str(uuid.uuid4())
         now = datetime.now()
         with conn.cursor() as cursor:
@@ -386,16 +432,10 @@ class MySQLService(BaseService):
         }
 
     def update_chapter(self, chapter_id: str, update_data: Dict) -> Optional[Dict]:
-        """
-        更新MySQL数据库中的章节记录
-        :param chapter_id: 章节ID
-        :param update_data: 更新的数据字典
-        :return: 更新后的章节记录字典，若不存在返回 None
-        """
+        """更新章节记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
         now = datetime.now()
-        # 字段映射：API字段名 -> 数据库列名
         field_mapping = {
             'chapter_number': 'chapter_num',
             'chapter_title': 'chapter_title',
@@ -428,21 +468,17 @@ class MySQLService(BaseService):
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
-            return row        
+            return row
 
     def fetch_chapter_by_id(self, chapter_id: str) -> Optional[Dict]:
-        """
-        根据章节ID从MySQL数据库获取章节记录
-        :return: 章节记录字典，若不存在返回 None
-        """
+        """根据章节 ID 获取章节记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
             row = cursor.fetchone()
             if row:
-                # 映射数据库列名到API字段名
                 if 'chapter_num' in row:
                     row['chapter_number'] = row.pop('chapter_num')
                 if 'notes' in row:
@@ -452,12 +488,9 @@ class MySQLService(BaseService):
             return row
 
     def fetch_chapters_by_work_id(self, work_id: str, status: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict]:
-        """
-        根据作品ID从MySQL数据库获取章节列表
-        :return: 章节记录字典列表
-        """
+        """根据作品 ID 获取章节列表"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
         conditions = ["work_id = %s"]
         params = [work_id]
         if status:
@@ -471,7 +504,6 @@ class MySQLService(BaseService):
             rows = cursor.fetchall()
             if rows:
                 for row in rows:
-                    # 映射数据库列名到API字段名
                     if 'chapter_num' in row:
                         row['chapter_number'] = row.pop('chapter_num')
                     if 'notes' in row:
@@ -479,15 +511,11 @@ class MySQLService(BaseService):
                     row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                     row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return rows
-        
+
     def delete_chapter(self, chapter_id: str) -> bool:
-        """
-        从MySQL数据库删除章节记录
-        :param chapter_id: 章节ID
-        :return: 是否成功删除
-        """
+        """删除章节记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"DELETE FROM {table} WHERE chapter_id = %s", (chapter_id,))
@@ -497,12 +525,9 @@ class MySQLService(BaseService):
     # ---------------- user 用户操作 ----------------
     def insert_user(self, user_id: str, name: str = '', bio: str = '',
                     email: str = None, password_hash: str = None) -> Dict:
-        """
-        插入用户记录到MySQL数据库
-        :return: 插入的行数据(包含 user_id, email, name, bio, created_at, updated_at)
-        """
+        """插入用户记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
         now = datetime.now()
 
         with conn.cursor() as cursor:
@@ -523,16 +548,11 @@ class MySQLService(BaseService):
         }
 
     def update_user(self, user_id: str, update_data: Dict) -> Optional[Dict]:
-        """
-        更新用户记录到MySQL数据库(允许更新name, bio, email, password_hash)
-        :param update_data: 可包含'name', 'bio', 'email', 'password_hash'的字典
-        :return: 更新后的完整行数据，若用户不存在返回 None
-        """
+        """更新用户记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
         now = datetime.now()
 
-        # 构建 SET 语句
         set_clauses = []
         params = []
         if 'name' in update_data:
@@ -549,7 +569,6 @@ class MySQLService(BaseService):
             params.append(update_data['password_hash'])
 
         if not set_clauses:
-            # 没有要更新的字段，但仍需更新时间戳
             set_clauses.append("updated_at = %s")
             params.append(now)
         else:
@@ -559,7 +578,6 @@ class MySQLService(BaseService):
         params.append(user_id)
 
         with conn.cursor() as cursor:
-            # 先检查用户是否存在
             cursor.execute(f"SELECT user_id FROM {table} WHERE user_id = %s", (user_id,))
             if not cursor.fetchone():
                 return None
@@ -567,7 +585,6 @@ class MySQLService(BaseService):
             cursor.execute(sql, params)
             conn.commit()
 
-            # 返回更新后的完整行数据
             cursor.execute(f"SELECT * FROM {table} WHERE user_id = %s", (user_id,))
             row = cursor.fetchone()
             if row:
@@ -576,12 +593,9 @@ class MySQLService(BaseService):
             return row
 
     def fetch_user_by_id(self, user_id: str) -> Optional[Dict]:
-        """
-        根据 user_id 从MySQL数据库获取用户记录
-        :return: 用户记录字典，若不存在返回 None
-        """
+        """根据 user_id 获取用户记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {table} WHERE user_id = %s", (user_id,))
@@ -592,12 +606,9 @@ class MySQLService(BaseService):
             return row
 
     def fetch_user_by_email(self, email: str) -> Optional[Dict]:
-        """
-        根据 email 从MySQL数据库获取用户记录
-        :return: 用户记录字典，若不存在返回 None
-        """
+        """根据 email 获取用户记录"""
         conn = self._ensure_connection()
-        table = self._get_config('MYSQL_TABLE_USERS', 'users')
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
 
         with conn.cursor() as cursor:
             cursor.execute(f"SELECT * FROM {table} WHERE email = %s", (email,))
@@ -608,29 +619,20 @@ class MySQLService(BaseService):
             return row
 
     def register_user(self, email: str, password: str, name: str = '', bio: str = '') -> Optional[Dict]:
-        """
-        注册新用户（使用密码哈希）
-        :return: 注册成功的用户记录，若email已存在返回 None
-        """
-        # 检查email是否已存在
+        """注册新用户"""
         existing_user = self.fetch_user_by_email(email)
         if existing_user:
             return None
 
-        # 生成密码哈希
         try:
             from werkzeug.security import generate_password_hash
             password_hash = generate_password_hash(password)
         except ImportError:
-            # 如果没有werkzeug，使用简单的哈希（仅用于开发）
             import hashlib
             password_hash = hashlib.sha256(password.encode()).hexdigest()
 
-        # 生成用户ID（使用UUID）
-        import uuid
         user_id = str(uuid.uuid4())
 
-        # 插入用户记录
         try:
             return self.insert_user(
                 user_id=user_id,
@@ -644,23 +646,18 @@ class MySQLService(BaseService):
             return None
 
     def authenticate_user(self, email: str, password: str) -> Optional[Dict]:
-        """
-        验证用户邮箱和密码
-        :return: 验证成功的用户记录，失败返回 None
-        """
+        """验证用户邮箱和密码"""
         user = self.fetch_user_by_email(email)
         if not user or not user.get('password_hash'):
             return None
 
         password_hash = user['password_hash']
 
-        # 验证密码
         try:
             from werkzeug.security import check_password_hash
             if check_password_hash(password_hash, password):
                 return user
         except ImportError:
-            # 如果没有werkzeug，使用简单的哈希比较（仅用于开发）
             import hashlib
             if password_hash == hashlib.sha256(password.encode()).hexdigest():
                 return user

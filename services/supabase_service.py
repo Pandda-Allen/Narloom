@@ -19,7 +19,6 @@ class SupabaseService(BaseService):
         'world': 'world_asset',
         'novel': 'novel_work',
         'chapter': 'novel_chapter',
-        'map': 'work_asset_map',
     }
 
     def __new__(cls):
@@ -146,23 +145,6 @@ class SupabaseService(BaseService):
 
     def chapter_fetch_by_novel_id(self, novel_id: str):
         return self._execute(self._table('chapter').select('*').eq, 'novel_id', novel_id)
-
-    # ---------- Work-Asset Map 操作 ----------
-    def map_insert(self, map_data: Dict):
-        return self._execute(self._table('map').insert, map_data)
-
-    def map_fetch_by_ids(self, work_id: str, user_id: str):
-        return self._execute(
-            lambda: self._table('map').select('*').eq('work_id', work_id).eq('user_id', user_id)
-        )
-
-    def map_delete(self, asset_id: str, work_id: str, user_id: str):
-        return self._execute(
-            lambda: self._table('map').delete()
-            .eq('asset_id', asset_id)
-            .eq('work_id', work_id)
-            .eq('user_id', user_id)
-        )
 
     # ---------- 认证 ----------
     def login(self, email: str, password: str):
