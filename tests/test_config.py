@@ -13,8 +13,6 @@ def test_config_defaults():
     assert Config.SECRET_KEY is not None
     assert isinstance(Config.DEBUG, bool)
     assert Config.API_PREFIX is not None
-    assert Config.SUPABASE_URL is not None or Config.SUPABASE_URL == ''
-    assert Config.SUPABASE_KEY is not None or Config.SUPABASE_KEY == ''
     print("Config defaults test passed")
 
 def test_mysql_config():

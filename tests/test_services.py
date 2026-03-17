@@ -7,7 +7,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
-from services.supabase_service import SupabaseService
 
 def test_singleton_pattern():
     """测试单例模式"""
@@ -18,10 +17,6 @@ def test_singleton_pattern():
     instance3 = MongoService()
     instance4 = MongoService()
     assert instance3 is instance4, "MongoService should be a singleton"
-
-    instance5 = SupabaseService()
-    instance6 = SupabaseService()
-    assert instance5 is instance6, "SupabaseService should be a singleton"
     print("OK Singleton pattern test passed")
 
 def test_service_initialization():
@@ -35,10 +30,6 @@ def test_service_initialization():
     mongo = MongoService()
     assert hasattr(mongo, 'init_app')
     assert hasattr(mongo, '_ensure_collection')
-
-    supabase = SupabaseService()
-    assert hasattr(supabase, 'init_app')
-    assert hasattr(supabase, '_ensure_client')
     print("OK Service initialization test passed")
 
 if __name__ == '__main__':

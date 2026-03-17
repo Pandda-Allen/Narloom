@@ -1,7 +1,5 @@
 Flask
 openai
-supabase
-realtime
 python-dotenv
 python-dateutil
 pymysql

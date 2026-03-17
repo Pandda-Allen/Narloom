@@ -13,10 +13,6 @@ class Config:
     # API 配置
     API_PREFIX = 'http://120.26.103.23'
 
-    # Supabase 配置
-    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
-    SUPABASE_KEY = os.getenv('SUPABASE_KEY', '')
-
     # DeepSeek配置
     DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
     DEEPSEEK_API_BASE = os.getenv('DEEPSEEK_API_BASE', 'https://api.deepseek.com')
