@@ -4,13 +4,40 @@
 """
 from flask import Blueprint, request
 from utils.response_helper import api_response, error_response
-from utils.general_helper import handle_errors
+from utils.decorators import handle_errors
 from services.mysql_service import mysql_service
 
 # ==================== 蓝图定义 ====================
 login_bp = Blueprint('login', __name__)
 user_profile_bp = Blueprint('user_profile', __name__)
 register_bp = Blueprint('register', __name__)
+
+# ==================== 验证辅助函数 ====================
+def validate_email(email: str) -> bool:
+    """验证邮箱格式"""
+    return '@' in email
+
+
+def validate_password(password: str) -> tuple:
+    """
+    验证密码强度
+    Returns: (is_valid, error_message)
+    """
+    if len(password) < 6:
+        return False, 'Password must be at least 6 characters'
+    return True, None
+
+
+def build_user_response(user: dict) -> dict:
+    """构建用户响应数据（不包含密码哈希）"""
+    return {
+        'user_id': user.get('user_id'),
+        'email': user.get('email'),
+        'name': user.get('name', ''),
+        'bio': user.get('bio', ''),
+        'created_at': user.get('created_at')
+    }
+
 
 # ==================== 用户注册 ====================
 @register_bp.route('/', methods=['POST'])
@@ -23,16 +50,18 @@ def register():
     name = data.get('name', '')
     bio = data.get('bio', '')
 
+    # 验证必填字段
     if not email or not password:
         return error_response('Email and password are required', 400)
 
     # 验证邮箱格式
-    if '@' not in email:
+    if not validate_email(email):
         return error_response('Invalid email format', 400)
 
-    # 验证密码长度
-    if len(password) < 6:
-        return error_response('Password must be at least 6 characters', 400)
+    # 验证密码强度
+    is_valid, error_msg = validate_password(password)
+    if not is_valid:
+        return error_response(error_msg, 400)
 
     # 注册用户
     user = mysql_service.register_user(email, password, name, bio)
@@ -40,20 +69,12 @@ def register():
     if user is None:
         return error_response('Email already registered', 409)
 
-    # 返回注册成功的用户信息（不包含密码哈希）
-    user_response = {
-        'user_id': user.get('user_id'),
-        'email': user.get('email'),
-        'name': user.get('name', ''),
-        'bio': user.get('bio', ''),
-        'created_at': user.get('created_at')
-    }
-
     return api_response(
         success=True,
         message='Registration successful',
-        data=user_response
+        data=build_user_response(user)
     )
+
 
 # ==================== 用户登录 ====================
 @login_bp.route('/', methods=['POST'])
@@ -64,11 +85,12 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
+    # 验证必填字段
     if not email or not password:
         return error_response('Email and password are required', 400)
 
     # 验证邮箱格式
-    if '@' not in email:
+    if not validate_email(email):
         return error_response('Invalid email format', 400)
 
     try:
@@ -76,19 +98,10 @@ def login():
         user = mysql_service.authenticate_user(email, password)
 
         if user:
-            # 返回登录成功的用户信息（不包含密码哈希）
-            user_response = {
-                'user_id': user.get('user_id'),
-                'email': user.get('email'),
-                'name': user.get('name', ''),
-                'bio': user.get('bio', ''),
-                'created_at': user.get('created_at')
-            }
-
             return api_response(
                 success=True,
                 message='Login successful',
-                data=user_response
+                data=build_user_response(user)
             )
         else:
             return error_response('Invalid credentials', 401)
@@ -98,6 +111,7 @@ def login():
         logger = logging.getLogger(__name__)
         logger.error(f"Login error for email {email}: {type(e).__name__}")
         return error_response('Invalid credentials', 401)
+
 
 # ==================== 用户资料管理 ====================
 @user_profile_bp.route('/', methods=['POST'])

@@ -5,34 +5,29 @@
 """
 from flask import Blueprint, request
 from utils.response_helper import error_response, api_response
+from utils.decorators import handle_errors
+from utils.general_helper import validate_required_fields
+from utils.resource_helper import (
+    build_chapter_data,
+    parse_pagination_args,
+    delete_chapter_cascade
+)
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
 import logging
-from utils.general_helper import handle_errors, get_request_json, validate_required_fields
 
 chapter_bp = Blueprint('chapter', __name__)
 logger = logging.getLogger(__name__)
 
-def fetch_chapter_data(data):
-    return {
-        'work_id': data.get('work_id'),
-        'author_id': data.get('author_id'),
-        'chapter_number': data.get('chapter_number'),
-        'chapter_title': data.get('chapter_title', ''),
-        'content': data.get('content', ''),
-        'status': data.get('status', 'draft'),
-        'word_count': data.get('word_count', 0),
-        'description': data.get('description', ''),
-    }
 
 @chapter_bp.route('/createChapter', methods=['POST'])
 @handle_errors
 def create_chapter():
     """创建新的章节"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['work_id', 'author_id', 'chapter_number'])
 
-    chapter_data = fetch_chapter_data(data)
+    chapter_data = build_chapter_data(data)
 
     # 插入 MySQL chapters
     try:
@@ -64,27 +59,22 @@ def create_chapter():
         count=1
     )
 
+
 @chapter_bp.route('/updateChapterById', methods=['POST'])
 @handle_errors
 def update_chapter():
     """更新章节"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['chapter_id'])
 
     chapter_id = data.get('chapter_id')
     update_fields = {}
-    if 'chapter_number' in data:
-        update_fields['chapter_number'] = data['chapter_number']
-    if 'chapter_title' in data:
-        update_fields['chapter_title'] = data['chapter_title']
-    if 'content' in data:
-        update_fields['content'] = data['content']
-    if 'status' in data:
-        update_fields['status'] = data['status']
-    if 'word_count' in data:
-        update_fields['word_count'] = data['word_count']
-    if 'description' in data:
-        update_fields['description'] = data['description']
+
+    # 允许更新的字段列表
+    allowed_fields = ['chapter_number', 'chapter_title', 'content', 'status', 'word_count', 'description']
+    for field in allowed_fields:
+        if field in data:
+            update_fields[field] = data[field]
 
     if not update_fields:
         return error_response('No fields to update', 400)
@@ -100,6 +90,7 @@ def update_chapter():
         count=1
     )
 
+
 @chapter_bp.route('/getChapterByNovelId', methods=['GET'])
 @handle_errors
 def get_chapter_by_novel_id():
@@ -107,20 +98,11 @@ def get_chapter_by_novel_id():
     validate_required_fields(request.args, ['work_id'])
     work_id = request.args.get('work_id')
     status = request.args.get('status')
-    limit_str = request.args.get('limit', '100')
-    offset_str = request.args.get('offset', '0')
 
     try:
-        limit = int(limit_str)
-        offset = int(offset_str)
-    except ValueError:
-        return error_response('limit and offset must be integers', 400)
-
-    if limit < 0 or offset < 0:
-        return error_response('limit and offset must be non-negative integers', 400)
-
-    if limit > 1000:
-        limit = 1000
+        limit, offset = parse_pagination_args(request.args)
+    except ValueError as e:
+        return error_response(str(e), 400)
 
     chapters = MySQLService().fetch_chapters_by_work_id(work_id, status, limit, offset)
     return api_response(
@@ -130,33 +112,22 @@ def get_chapter_by_novel_id():
         count=len(chapters)
     )
 
+
 @chapter_bp.route('/deleteChapterById', methods=['POST'])
 @handle_errors
 def delete_chapter():
     """删除章节"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['chapter_id'])
     chapter_id = data.get('chapter_id')
 
-    chapter = MySQLService().fetch_chapter_by_id(chapter_id)
-    if not chapter:
-        return error_response('Chapter not found', 404)
-    work_id = chapter['work_id']
+    deleted, _ = delete_chapter_cascade(chapter_id)
 
-    # 删除 MySQL 中的章节
-    deleted = MySQLService().delete_chapter(chapter_id)
-    if not deleted:
-        return error_response('Chapter not found', 404)
-
-    # 从 MongoDB work_details 中移除 chapter_id
-    try:
-        MongoService().remove_chapter_from_work(work_id, chapter_id)
-    except Exception as e:
-        logger.error(f"Error updating work details after chapter deletion: {str(e)}")
-
-    return api_response(
-        success=True,
-        message='Chapter deleted successfully',
-        data=None,
-        count=1
-    )
+    if deleted:
+        return api_response(
+            success=True,
+            message='Chapter deleted successfully',
+            data=None,
+            count=1
+        )
+    return error_response('Chapter not found', 404)

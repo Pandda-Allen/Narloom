@@ -5,7 +5,13 @@
 """
 from flask import Blueprint, request
 from utils.response_helper import error_response, api_response
-from utils.general_helper import get_request_json, handle_errors, validate_required_fields
+from utils.decorators import handle_errors
+from utils.general_helper import validate_required_fields
+from utils.resource_helper import (
+    get_full_asset_by_id,
+    parse_pagination_args,
+    delete_asset_cascade
+)
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
 import logging
@@ -13,11 +19,12 @@ import logging
 asset_bp = Blueprint('asset', __name__)
 logger = logging.getLogger(__name__)
 
+
 @asset_bp.route('/createNewAsset', methods=['POST'])
 @handle_errors
 def create_asset():
     """创建新的资产（character 或 world）"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['type', 'user_id'])
 
     user_id = data.get('user_id')
@@ -55,11 +62,12 @@ def create_asset():
         count=1
     )
 
+
 @asset_bp.route('/updateAssetById', methods=['POST'])
 @handle_errors
 def update_asset():
     """更新资产"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['asset_id'])
 
     asset_id = data.get('asset_id')
@@ -113,6 +121,7 @@ def update_asset():
         count=1
     )
 
+
 @asset_bp.route('/getAssetById', methods=['GET'])
 @handle_errors
 def get_asset():
@@ -120,21 +129,10 @@ def get_asset():
     validate_required_fields(request.args, ['asset_id'])
 
     asset_id = request.args.get('asset_id')
-    mysql_row = MySQLService().fetch_asset_by_id(asset_id)
-    if not mysql_row:
+    result = get_full_asset_by_id(asset_id)
+
+    if not result:
         return error_response('Asset not found', 404)
-
-    asset_data = MongoService().fetch_asset_data(asset_id) or {}
-
-    result = {
-        'asset_id': mysql_row['asset_id'],
-        'user_id': mysql_row['user_id'],
-        'work_id': mysql_row['work_id'],
-        'asset_type': mysql_row['asset_type'],
-        'created_at': mysql_row['created_at'],
-        'updated_at': mysql_row['updated_at'],
-        'asset_data': asset_data
-    }
 
     return api_response(
         success=True,
@@ -142,6 +140,7 @@ def get_asset():
         data=result,
         count=1
     )
+
 
 @asset_bp.route('/getAssetsByUserId', methods=['GET'])
 @handle_errors
@@ -152,20 +151,11 @@ def get_user_assets():
     user_id = request.args.get('user_id')
     asset_type = request.args.get('type', None)
     work_id = request.args.get('work_id', None)
-    limit_str = request.args.get('limit', '100')
-    offset_str = request.args.get('offset', '0')
 
     try:
-        limit = int(limit_str)
-        offset = int(offset_str)
-    except ValueError:
-        return error_response('limit and offset must be integers', 400)
-
-    if limit < 0 or offset < 0:
-        return error_response('limit and offset must be non-negative integers', 400)
-
-    if limit > 1000:
-        limit = 1000
+        limit, offset = parse_pagination_args(request.args)
+    except ValueError as e:
+        return error_response(str(e), 400)
 
     mysql_rows = MySQLService().fetch_assets(user_id, asset_type, work_id, limit, offset)
     if not mysql_rows:
@@ -198,23 +188,16 @@ def get_user_assets():
         count=len(results)
     )
 
+
 @asset_bp.route('/deleteAssetById', methods=['POST'])
 @handle_errors
 def delete_asset():
     """删除资产"""
-    data = get_request_json()
+    data = request.get_json()
     validate_required_fields(data, ['asset_id'])
     asset_id = data.get('asset_id')
 
-    # 先删除 MongoDB 中的数据
-    try:
-        MongoService().delete_asset_data(asset_id)
-    except Exception as e:
-        logger.error(f'Error deleting asset data from MongoDB: {e}')
-        # 继续执行，不阻塞删除流程
-
-    # 删除 MySQL 中的记录
-    deleted = MySQLService().delete_asset(asset_id)
+    deleted = delete_asset_cascade(asset_id)
 
     if deleted:
         return api_response(
