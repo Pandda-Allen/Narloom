@@ -6,6 +6,7 @@
 - [作品接口 (Work)](#作品接口-work)
 - [章节接口 (Chapter)](#章节接口-chapter)
 - [AI 接口 (AI)](#ai 接口-ai)
+- [动漫工具接口 (Anime Tool)](#动漫工具接口-anime-tool)
 
 ---
 
@@ -808,6 +809,201 @@ offset: 0                             // 可选，默认 0
       "provider": "DeepSeek",
       "api_version": "v1"
     }
+  }
+}
+```
+
+---
+
+## 动漫工具接口 (Anime Tool)
+
+### 上传漫画图片
+- API: `POST /rest/v1/anime-tool/uploadPicture`
+- Content-Type: `multipart/form-data`
+- Frontend Request:
+```
+picture: <file>                         // 必填，图片文件
+user_id: uuid-string                    // 必填，用户 ID
+work_id: uuid-string                    // 可选，关联的作品 ID
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Picture uploaded successfully",
+  "data": {
+    "asset_id": "uuid-string",
+    "user_id": "uuid-string",
+    "work_id": "uuid-string",
+    "url": "https://oss-url.com/comic/user123/2026/03/xxx.jpg",
+    "object_key": "comic/user123/2026/03/xxx.jpg",
+    "original_filename": "image.jpg",
+    "file_size": 102400
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: No picture file provided / No file selected / Missing required fields (user_id)
+  - 500: Failed to upload picture / Failed to create asset record
+
+---
+
+### 获取用户漫画图片列表
+- API: `GET /rest/v1/anime-tool/fetchPicture`
+- Frontend Request (Query Parameters):
+```
+user_id: uuid-string                    // 必填，用户 ID
+work_id: uuid-string                    // 可选，筛选特定作品的图片
+limit: 100                              // 可选，默认 100
+offset: 0                               // 可选，默认 0
+oss_list: false                         // 可选，默认 false。true 时直接从 OSS 获取列表
+marker: ""                              // 可选，OSS 分页标记（oss_list=true 时使用）
+```
+- Backend Response (Success) - 从数据库获取:
+```json
+{
+  "status": "success",
+  "message": "Pictures fetched successfully",
+  "data": [
+    {
+      "asset_id": "uuid-string",
+      "user_id": "uuid-string",
+      "work_id": "uuid-string",
+      "url": "https://oss-url.com/comic/user123/2026/03/xxx.jpg",
+      "object_key": "comic/user123/2026/03/xxx.jpg",
+      "original_filename": "image.jpg",
+      "file_size": 102400,
+      "upload_timestamp": "2026-03-19T12:00:00",
+      "created_at": "2026-03-19 12:00:00",
+      "updated_at": "2026-03-19 12:00:00"
+    }
+  ],
+  "count": 1
+}
+```
+- Backend Response (Success) - 从 OSS 获取 (oss_list=true):
+```json
+{
+  "status": "success",
+  "message": "Pictures fetched successfully from OSS",
+  "data": {
+    "pictures": [
+      {
+        "object_key": "comic/user123/2026/03/xxx.jpg",
+        "size": 102400,
+        "last_modified": "2026-03-19T12:00:00Z",
+        "etag": "xxx",
+        "url": "https://oss-url.com/comic/user123/2026/03/xxx.jpg"
+      }
+    ],
+    "is_truncated": false,
+    "next_marker": ""
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (user_id) / limit and offset must be integers
+  - 500: Failed to fetch pictures
+
+---
+
+### 生成动画（图生视频）
+- API: `POST /rest/v1/anime-tool/generateAnime`
+- Content-Type: `application/json` 或 `multipart/form-data`
+- Frontend Request (JSON 方式 - 使用已有图片):
+```json
+{
+  "user_id": "uuid-string",             // 必填，用户 ID
+  "asset_id": "uuid-string",            // 可选，已上传图片的资产 ID
+  "oss_object_key": "xxx.jpg",          // 可选，OSS 对象键（与 asset_id 二选一）
+  "parameters": {                       // 可选，生成参数
+    "duration": 5,                      // 视频时长（秒）
+    "fps": 24,                          // 帧率
+    "style": "anime",                   // 风格类型
+    "motion_strength": 0.7,             // 运动强度
+    "prompt": "微风吹过头发"              // 生成提示词
+  }
+}
+```
+- Frontend Request (Form 方式 - 上传新图片):
+```
+user_id: uuid-string                    // 必填
+picture: <file>                         // 可选，新图片文件
+parameters: '{"duration": 5, "fps": 24}' // 可选，生成参数 JSON 字符串
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Anime generation task created (placeholder - implementation pending)",
+  "data": {
+    "task_id": "uuid-string",
+    "status": "pending",
+    "source": {
+      "type": "asset",                  // asset | oss | new_upload
+      "asset_id": "uuid-string",
+      "object_key": "comic/user123/2026/03/xxx.jpg",
+      "url": "https://oss-url.com/xxx.jpg"
+    },
+    "parameters": {
+      "duration": 5,
+      "fps": 24
+    },
+    "note": "This is a placeholder response. Video generation logic to be implemented."
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Request body must be JSON or multipart/form-data / Missing required fields (user_id) / Must provide either asset_id, oss_object_key, or picture file
+  - 403: Unauthorized: This asset does not belong to the user
+  - 404: Asset not found
+  - 500: Failed to upload picture / Failed to get picture URL
+
+---
+
+### 删除漫画图片
+- API: `POST /rest/v1/anime-tool/deletePicture`
+- Frontend Request:
+```json
+{
+  "asset_id": "uuid-string",            // 必填，资产 ID
+  "user_id": "uuid-string"              // 必填，用户 ID（用于权限验证）
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Picture deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+- Error Responses:
+  - 400: Missing required fields (asset_id, user_id)
+  - 403: Unauthorized: This asset does not belong to the user
+  - 404: Asset not found
+  - 500: Failed to delete asset record
+
+---
+
+### 健康检查
+- API: `GET /rest/v1/anime-tool/health`
+- Frontend Request: 无
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Health check completed",
+  "data": {
+    "service": "anime-tool",
+    "status": "healthy",
+    "message": "Aliyun OSS connection successful",
+    "bucket": "narloom-comic",
+    "endpoint": "oss-cn-hangzhou.aliyuncs.com"
   }
 }
 ```

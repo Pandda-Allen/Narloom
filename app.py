@@ -16,6 +16,9 @@ def create_app(config_name='default'):
     # 初始化 AI 服务
     init_ai_service(app)
 
+    # 初始化 Anime Tool 服务
+    init_anime_tool_service(app)
+
     # 注册 Flask Blueprints
     register_blueprints(app)
 
@@ -58,6 +61,18 @@ def init_ai_service(app):
     else:
         app.logger.error("Failed to initialize Qwen AI Service.")
 
+def init_anime_tool_service(app):
+    """初始化 Anime Tool Service"""
+    from services.anime_tool_service import anime_tool_service
+
+    anime_tool_service.init_app(app)
+
+    # 触发初始化
+    if anime_tool_service._initialized:
+        app.logger.info("Aliyun OSS service is ready to use.")
+    else:
+        app.logger.error("Failed to initialize Aliyun OSS service.")
+
 
 def register_blueprints(app):
     from api.routes.user import login_bp, user_profile_bp, register_bp
@@ -65,6 +80,7 @@ def register_blueprints(app):
     from api.routes.chapter import chapter_bp
     from api.routes.asset import asset_bp
     from api.routes.ai import ai_bp
+    from api.routes.anime_tool import anime_tool_bp
 
     # 使用配置文件中的 API 前缀
     api_prefix = app.config['API_PREFIX']
@@ -76,3 +92,4 @@ def register_blueprints(app):
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
     app.register_blueprint(chapter_bp, url_prefix='/rest/v1/chapter')
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
+    app.register_blueprint(anime_tool_bp, url_prefix='/rest/v1/anime-tool')

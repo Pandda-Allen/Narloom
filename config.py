@@ -63,6 +63,13 @@ class Config:
         }
     }
 
+    # 阿里云 OSS 配置（用于 Anime Tool）
+    ALIYUN_OSS_ENDPOINT = os.getenv('ALIYUN_OSS_ENDPOINT', 'oss-cn-hangzhou.aliyuncs.com')
+    ALIYUN_OSS_ACCESS_KEY_ID = os.getenv('ALIYUN_OSS_ACCESS_KEY_ID')
+    ALIYUN_OSS_ACCESS_KEY_SECRET = os.getenv('ALIYUN_OSS_ACCESS_KEY_SECRET')
+    ALIYUN_OSS_BUCKET_NAME = os.getenv('ALIYUN_OSS_BUCKET_NAME', 'narloom-comic')
+    ALIYUN_OSS_CDN_DOMAIN = os.getenv('ALIYUN_OSS_CDN_DOMAIN', '')
+
     # MySQL 配置
     MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
     MYSQL_PORT = int(os.getenv('MYSQL_PORT', 3306))
