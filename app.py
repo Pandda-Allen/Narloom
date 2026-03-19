@@ -48,15 +48,15 @@ def init_mongo(app):
 
 def init_ai_service(app):
     """初始化 AI Service"""
-    from services.ai_service import deepseek_ai_service
+    from services.ai_service import qwen_ai_service
 
-    deepseek_ai_service.init_app(app)
+    qwen_ai_service.init_app(app)
 
     # 触发初始化
-    if deepseek_ai_service._initialized:
-        app.logger.info("DeepSeek AI Service is ready to use.")
+    if qwen_ai_service._initialized:
+        app.logger.info("Qwen AI Service is ready to use.")
     else:
-        app.logger.error("Failed to initialize DeepSeek AI Service.")
+        app.logger.error("Failed to initialize Qwen AI Service.")
 
 
 def register_blueprints(app):

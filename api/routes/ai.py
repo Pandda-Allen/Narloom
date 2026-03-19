@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
-from services.ai_service import deepseek_ai_service
+from services.ai_service import qwen_ai_service
 from utils.response_helper import api_response
 from utils.general_helper import handle_errors, get_request_json, validate_required_fields
 from datetime import datetime
@@ -13,15 +13,15 @@ def process_ai_request():
     data = get_request_json()
 
     # 检查 AI 服务是否已初始化
-    if not deepseek_ai_service._initialized:
+    if not qwen_ai_service._initialized:
         return api_response(
             success=False,
-            message='AI Service not initialized. Please check DEEPSEEK_API_KEY configuration.',
+            message='AI Service not initialized. Please check DASHSCOPE_API_KEY configuration.',
             status_code=503
         )
 
     # 处理请求
-    result = deepseek_ai_service.process_request(data)
+    result = qwen_ai_service.process_request(data)
 
     # 记录使用情况
     if result.get('success'):
@@ -38,7 +38,7 @@ def process_ai_request():
 @handle_errors
 def get_models():
     """获取支持的 AI 模型列表"""
-    models = deepseek_ai_service.get_supported_models()
+    models = qwen_ai_service.get_supported_models()
     return api_response(
         success=True,
         message='Models fetched successfully',
@@ -50,13 +50,13 @@ def get_models():
 @handle_errors
 def health_check():
     """健康检查"""
-    health_status = deepseek_ai_service.health_check()
+    health_status = qwen_ai_service.health_check()
 
     return api_response(
         success=True,
         message='Health check completed',
         data={
-            'service': 'deepseek-ai',
+            'service': 'qwen-ai',
             **health_status
         }
     )
@@ -67,13 +67,13 @@ def test_ai():
     """测试 AI 接口"""
     test_data = {
         "task_type": "chat",
-        "model": "deepseek-chat",
+        "model": "qwen3.5-plus",
         "content": {
             "user_prompt": "请用一句话介绍一下你自己"
         }
     }
 
-    result = deepseek_ai_service.process_request(test_data)
+    result = qwen_ai_service.process_request(test_data)
 
     return api_response(
         success=result.get('success', False),
@@ -95,9 +95,9 @@ def get_capabilities():
                     'translate', 'summarize', 'rewrite', 'code', 'analysis'
                 ],
                 'supported_languages': ['zh-CN', 'en-US', 'ja-JP', 'ko-KR', 'fr-FR', 'es-ES', 'de-DE', 'ru-RU'],
-                'max_tokens': 4096,
-                'supports_streaming': False,
-                'provider': 'DeepSeek',
+                'max_tokens': 16384,
+                'supports_streaming': True,
+                'provider': '阿里云通义千问',
                 'api_version': 'v1'
             }
         }

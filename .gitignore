@@ -1,5 +1,7 @@
+.gitignore
+
 # 环境变量
-.env
+.env*
 
 # Python
 __pycache__/
