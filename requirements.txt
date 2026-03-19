@@ -8,3 +8,4 @@ requests
 Flask-CORS
 werkzeug
 oss2
+bcrypt

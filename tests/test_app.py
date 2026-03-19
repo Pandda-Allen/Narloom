@@ -14,7 +14,7 @@ def test_app_factory():
     assert app.name == 'app'
     # 检查蓝图是否注册
     blueprints = list(app.blueprints.keys())
-    expected_blueprints = ['login', 'user_profile', 'asset', 'work', 'chapter', 'ai']
+    expected_blueprints = ['user', 'asset', 'work', 'chapter', 'ai', 'anime-tool']
     for bp in expected_blueprints:
         assert bp in blueprints, f"Blueprint {bp} not registered"
     print("OK App factory test passed")

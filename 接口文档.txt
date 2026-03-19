@@ -13,7 +13,7 @@
 ## 用户接口 (User)
 
 ### 用户注册
-- API: `POST /register/`
+- API: `POST /user/register`
 - Frontend Request:
 ```json
 {
@@ -44,7 +44,7 @@
 ---
 
 ### 用户登录
-- API: `POST /login/`
+- API: `POST /user/login`
 - Frontend Request:
 ```json
 {
@@ -72,31 +72,82 @@
 
 ---
 
+### 获取用户资料
+- API: `GET /user/<user_id>`
+- Frontend Request: 无
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "User profile fetched successfully",
+  "data": {
+    "user_id": "uuid-string",
+    "email": "user@example.com",
+    "name": "用户名",
+    "bio": "个人简介",
+    "created_at": "2026-03-17 12:00:00"
+  }
+}
+```
+- Error Responses:
+  - 404: User not found
+
+---
+
 ### 更新用户资料
-- API: `POST /user_profile/`
+- API: `PUT /user/<user_id>`
 - Frontend Request:
 ```json
 {
-  "user_id": "uuid-string",           // 必填
   "name": "新用户名",                  // 可选
-  "bio": "新的个人简介"                // 可选
+  "bio": "新的个人简介",                // 可选
+  "email": "new@example.com"          // 可选
 }
 ```
 - Backend Response (Success):
 ```json
 {
   "status": "success",
-  "message": "User Profile updated successfully",
+  "message": "User profile updated successfully",
   "data": {
     "user_id": "uuid-string",
+    "email": "user@example.com",
     "name": "新用户名",
-    "bio": "新的个人简介"
+    "bio": "新的个人简介",
+    "created_at": "2026-03-17 12:00:00"
   }
 }
 ```
 - Error Responses:
-  - 400: User ID is required / No fields to update
+  - 400: Request body must be JSON / No fields to update
   - 404: User not found
+
+---
+
+### 删除用户
+- API: `DELETE /user/<user_id>`
+- Frontend Request: 无（user_id 从 URL 路径获取）
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "User and all related data deleted successfully",
+  "data": {
+    "user_id": "uuid-string",
+    "deleted_assets": 5,
+    "deleted_works": 2
+  },
+  "count": 1
+}
+```
+- Error Responses:
+  - 404: User not found
+  - 500: Failed to delete user
+
+**注意**：删除用户会级联删除以下数据：
+1. 用户关联的所有 assets（包括 OSS 中的图片和 MongoDB 中的 asset_data）
+2. 用户关联的所有 works（包括级联删除所有章节）
+3. 用户记录本身
 
 ---
 
@@ -108,7 +159,7 @@
 ```json
 {
   "user_id": "uuid-string",           // 必填
-  "type": "character",                // 必填，enum: character|world
+  "type": "character",                // 必填，enum: character|world|comic
   "work_id": "uuid-string",           // 可选，关联的作品 ID
   "asset_data": {                     // 可选，MongoDB 存储的详细数据
     // character 类型示例:
@@ -123,7 +174,14 @@
     // world 类型示例:
     "name": "地点名称",
     "description": "地点描述",
-    "location": "地理位置"
+    "location": "地理位置",
+
+    // comic 类型示例（由系统自动填充）:
+    "type": "comic_picture",
+    "oss_url": "https://oss-url.com/xxx.jpg",
+    "oss_object_key": "comic/user123/2026/03/xxx.jpg",
+    "original_filename": "image.jpg",
+    "file_size": 102400
   }
 }
 ```
@@ -268,6 +326,10 @@ offset: 0                             // 可选，默认 0
 - Error Responses:
   - 400: Missing required fields (asset_id)
   - 404: Asset not found or delete failed
+
+**注意**：删除资产会级联删除：
+1. MongoDB 中的 `asset_data`（存储详细数据）
+2. 如果是 `comic` 类型资产，会同时删除阿里云 OSS 中存储的图片文件
 
 ---
 
@@ -451,6 +513,11 @@ offset: 0                             // 可选，默认 0
 - Error Responses:
   - 400: Missing required fields (work_id)
   - 500: Failed to delete novel
+
+**注意**：删除作品会级联删除：
+1. 该作品关联的所有章节（chapters）
+2. MongoDB 中的 `work_details`（存储 asset_ids 和 chapter_ids）
+3. 从关联的 assets 中移除该作品的引用（但不删除 assets 本身）
 
 ---
 
@@ -684,6 +751,10 @@ offset: 0                             // 可选，默认 0
 - Error Responses:
   - 400: Missing required fields (chapter_id)
   - 404: Chapter not found
+
+**注意**：删除章节会级联删除：
+1. MySQL 中的章节记录
+2. MongoDB 的 `work_details` 中的 chapter_ids 列表会同步移除
 
 ---
 

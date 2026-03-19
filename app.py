@@ -75,19 +75,14 @@ def init_anime_tool_service(app):
 
 
 def register_blueprints(app):
-    from api.routes.user import login_bp, user_profile_bp, register_bp
+    from api.routes.user import user_bp
     from api.routes.work import work_bp
     from api.routes.chapter import chapter_bp
     from api.routes.asset import asset_bp
     from api.routes.ai import ai_bp
     from api.routes.anime_tool import anime_tool_bp
 
-    # 使用配置文件中的 API 前缀
-    api_prefix = app.config['API_PREFIX']
-
-    app.register_blueprint(login_bp, url_prefix='/login')
-    app.register_blueprint(user_profile_bp, url_prefix='/user_profile')
-    app.register_blueprint(register_bp, url_prefix='/register')
+    app.register_blueprint(user_bp)
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
     app.register_blueprint(chapter_bp, url_prefix='/rest/v1/chapter')

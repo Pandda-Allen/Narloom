@@ -624,12 +624,9 @@ class MySQLService(BaseService):
         if existing_user:
             return None
 
-        try:
-            from werkzeug.security import generate_password_hash
-            password_hash = generate_password_hash(password)
-        except ImportError:
-            import hashlib
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
+        # 使用 bcrypt 加密密码
+        import bcrypt
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         user_id = str(uuid.uuid4())
 
@@ -653,15 +650,25 @@ class MySQLService(BaseService):
 
         password_hash = user['password_hash']
 
+        # 使用 bcrypt 验证密码
+        import bcrypt
         try:
-            from werkzeug.security import check_password_hash
-            if check_password_hash(password_hash, password):
+            if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
                 return user
-        except ImportError:
-            import hashlib
-            if password_hash == hashlib.sha256(password.encode()).hexdigest():
-                return user
+        except Exception:
+            return None
 
         return None
+
+    def delete_user(self, user_id: str) -> bool:
+        """删除用户记录"""
+        conn = self._ensure_connection()
+        table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
 
 mysql_service = MySQLService()
