@@ -30,6 +30,30 @@ class Config:
     # 会话配置
     SESSION_TIMEOUT = timedelta(hours=2)
 
+    # JWT 配置
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', os.urandom(32).hex())
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES', '30')))
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_EXPIRES', '7')))
+    JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
+    JWT_ISSUER = os.getenv('JWT_ISSUER', 'narloom-api')
+    JWT_AUDIENCE = os.getenv('JWT_AUDIENCE', 'narloom-client')
+
+    # Token Blacklist 配置
+    JWT_BLACKLIST_ENABLED = os.getenv('JWT_BLACKLIST_ENABLED', 'True').lower() == 'true'
+
+    # OAuth2.0 提供商配置
+    # 微信 OAuth2.0
+    WECHAT_OAUTH_APP_ID = os.getenv('WECHAT_OAUTH_APP_ID')
+    WECHAT_OAUTH_APP_SECRET = os.getenv('WECHAT_OAUTH_APP_SECRET')
+    WECHAT_OAUTH_REDIRECT_URI = os.getenv('WECHAT_OAUTH_REDIRECT_URI', 'http://localhost:5000/user/oauth/wechat/callback')
+    WECHAT_OAUTH_SCOPE = os.getenv('WECHAT_OAUTH_SCOPE', 'snsapi_login')
+
+    # QQ OAuth2.0
+    QQ_OAUTH_APP_ID = os.getenv('QQ_OAUTH_APP_ID')
+    QQ_OAUTH_APP_KEY = os.getenv('QQ_OAUTH_APP_KEY')
+    QQ_OAUTH_REDIRECT_URI = os.getenv('QQ_OAUTH_REDIRECT_URI', 'http://localhost:5000/user/oauth/qq/callback')
+    QQ_OAUTH_SCOPE = os.getenv('QQ_OAUTH_SCOPE', 'get_user_info')
+
     # 文件上传配置
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')

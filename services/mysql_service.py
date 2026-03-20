@@ -13,7 +13,7 @@ from .base_service import BaseService
 
 # 表名白名单，防止 SQL 注入
 TABLE_WHITELIST = {
-    'users', 'assets', 'works', 'chapters'
+    'users', 'assets', 'works', 'chapters', 'user_oauth_accounts', 'token_blacklist', 'oauth_states'
 }
 
 class MySQLService(BaseService):
@@ -81,19 +81,47 @@ class MySQLService(BaseService):
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS users (
                         user_id VARCHAR(100) PRIMARY KEY,
-                        email VARCHAR(255) UNIQUE,
-                        password_hash VARCHAR(255),
+                        email VARCHAR(255) UNIQUE COMMENT '用户邮箱（OAuth 用户可为空）',
+                        password_hash VARCHAR(255) COMMENT '密码哈希（OAuth 用户可为空）',
                         name VARCHAR(255) DEFAULT '',
                         bio TEXT,
+                        phone VARCHAR(20) NULL COMMENT '手机号',
+                        avatar_url VARCHAR(500) NULL COMMENT '头像 URL',
+                        last_login_at DATETIME NULL COMMENT '最后登录时间',
+                        last_login_provider VARCHAR(20) NULL COMMENT '最后登录方式（email/wechat/qq）',
                         created_at DATETIME NOT NULL,
                         updated_at DATETIME NOT NULL,
-                        INDEX idx_email (email)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                        INDEX idx_email (email),
+                        INDEX idx_last_login_provider (last_login_provider)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
+
+                # 创建 user_oauth_accounts 表（如果不存在）
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_oauth_accounts (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id VARCHAR(100) NOT NULL COMMENT '关联的用户 ID',
+                        provider VARCHAR(20) NOT NULL COMMENT '提供商：wechat, qq',
+                        open_id VARCHAR(100) NOT NULL COMMENT '用户在提供商的唯一 ID',
+                        union_id VARCHAR(100) NULL COMMENT '统一 ID（微信生态下跨应用唯一）',
+                        access_token TEXT NULL COMMENT 'OAuth 访问令牌',
+                        access_token_expires_at DATETIME NULL COMMENT '令牌过期时间',
+                        refresh_token TEXT NULL COMMENT 'OAuth 刷新令牌',
+                        provider_data JSON NULL COMMENT '原始用户数据（昵称、头像等）',
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_provider_open_id (provider, open_id),
+                        UNIQUE KEY unique_provider_union_id (provider, union_id),
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_provider (provider),
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+
                 conn.commit()
-                self._log("Table 'users' ensured")
+                self._log("Table 'users' and 'user_oauth_accounts' ensured")
         except Exception as e:
-            self._log(f"Error creating table users: {e}", level='error')
+            self._log(f"Error creating users table: {e}", level='error')
             pass
 
     def _create_tables_if_not_exists(self):
@@ -113,7 +141,7 @@ class MySQLService(BaseService):
                         INDEX idx_user_id (user_id),
                         INDEX idx_work_id (work_id),
                         INDEX idx_asset_type (asset_type)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
                 # 创建 works 表
@@ -132,7 +160,7 @@ class MySQLService(BaseService):
                         updated_at DATETIME NOT NULL,
                         INDEX idx_author_id (author_id),
                         INDEX idx_status (status)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
                 # 创建 chapters 表
@@ -152,7 +180,40 @@ class MySQLService(BaseService):
                         INDEX idx_work_id (work_id),
                         INDEX idx_author_id (author_id),
                         INDEX idx_chapter_num (work_id, chapter_num)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+
+                # 创建 token_blacklist 表（JWT 令牌黑名单）
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS token_blacklist (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        jti VARCHAR(100) NOT NULL UNIQUE COMMENT 'JWT ID（唯一标识）',
+                        user_id VARCHAR(100) NULL COMMENT '用户 ID',
+                        token_type VARCHAR(20) NOT NULL DEFAULT 'access' COMMENT '令牌类型（access/refresh）',
+                        blacklisted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入黑名单时间',
+                        expires_at DATETIME NOT NULL COMMENT '令牌原始过期时间',
+                        reason VARCHAR(50) DEFAULT 'logout' COMMENT '加入黑名单原因（logout/revoke/ban）',
+                        INDEX idx_jti (jti),
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_expires_at (expires_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+
+                # 创建 oauth_states 表（OAuth CSRF 防护）
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS oauth_states (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        state VARCHAR(100) NOT NULL UNIQUE COMMENT '随机生成的 state 参数',
+                        user_id VARCHAR(100) NULL COMMENT '关联的用户 ID（如已登录绑定场景）',
+                        provider VARCHAR(20) NOT NULL COMMENT 'OAuth 提供商',
+                        action VARCHAR(20) DEFAULT 'login' COMMENT '操作类型（login/bind）',
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        expires_at DATETIME NOT NULL COMMENT '过期时间（10 分钟）',
+                        consumed_at DATETIME NULL COMMENT '消耗时间',
+                        consumed_by_action VARCHAR(20) NULL COMMENT '被用于哪个 action',
+                        INDEX idx_state (state),
+                        INDEX idx_expires_at (expires_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
                 conn.commit()
@@ -669,6 +730,333 @@ class MySQLService(BaseService):
             cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
             conn.commit()
             return cursor.rowcount > 0
+
+    # ==================== OAuth 相关方法 ====================
+
+    def fetch_user_by_oauth(self, provider: str, open_id: str) -> Optional[Dict]:
+        """
+        通过 OAuth provider 和 open_id 获取用户
+
+        Args:
+            provider: OAuth 提供商（wechat, qq）
+            open_id: 用户在提供商的唯一 ID
+
+        Returns:
+            Dict: 用户记录，包含 user_id, email, name, avatar_url 等
+        """
+        conn = self._ensure_connection()
+
+        try:
+            with conn.cursor() as cursor:
+                # 从 user_oauth_accounts 表查找
+                cursor.execute("""
+                    SELECT u.*, o.provider, o.open_id, o.union_id, o.provider_data
+                    FROM user_oauth_accounts o
+                    JOIN users u ON o.user_id = u.user_id
+                    WHERE o.provider = %s AND o.open_id = %s
+                """, (provider, open_id))
+
+                row = cursor.fetchone()
+                if row:
+                    row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                return row
+
+        except Exception as e:
+            self._log(f"Error fetching user by OAuth: {e}", level='error')
+            return None
+
+    def fetch_user_by_oauth_union_id(self, provider: str, union_id: str) -> Optional[Dict]:
+        """
+        通过 union_id 获取用户（微信生态跨应用识别）
+
+        Args:
+            provider: OAuth 提供商
+            union_id: 统一 ID
+
+        Returns:
+            Dict: 用户记录
+        """
+        conn = self._ensure_connection()
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT u.*, o.provider, o.open_id, o.union_id
+                    FROM user_oauth_accounts o
+                    JOIN users u ON o.user_id = u.user_id
+                    WHERE o.provider = %s AND o.union_id = %s
+                """, (provider, union_id))
+
+                row = cursor.fetchone()
+                if row:
+                    row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                return row
+
+        except Exception as e:
+            self._log(f"Error fetching user by union_id: {e}", level='error')
+            return None
+
+    def create_oauth_user(self, provider: str, open_id: str,
+                          union_id: str = None, provider_data: dict = None,
+                          name: str = '', avatar_url: str = None,
+                          email: str = None) -> Optional[Dict]:
+        """
+        创建 OAuth 用户并绑定 OAuth 账号
+
+        Args:
+            provider: OAuth 提供商
+            open_id: 用户 openid
+            union_id: 统一 ID（可选）
+            provider_data: 原始用户数据（包含昵称、头像等）
+            name: 用户昵称
+            avatar_url: 头像 URL
+            email: 邮箱（可选）
+
+        Returns:
+            Dict: 创建的用户记录
+        """
+        conn = self._ensure_connection()
+        user_id = str(uuid.uuid4())
+        now = datetime.now()
+
+        try:
+            with conn.cursor() as cursor:
+                # 1. 创建用户记录
+                users_table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
+                cursor.execute("""
+                    INSERT INTO users (user_id, email, name, avatar_url, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (user_id, email, name, avatar_url, now, now))
+
+                # 2. 创建 OAuth 账号绑定记录
+                if provider_data:
+                    provider_data_json = json.dumps(provider_data, ensure_ascii=False)
+                else:
+                    provider_data_json = None
+
+                cursor.execute("""
+                    INSERT INTO user_oauth_accounts
+                    (user_id, provider, open_id, union_id, provider_data, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (user_id, provider, open_id, union_id, provider_data_json, now, now))
+
+                conn.commit()
+
+                self._log(f"Created OAuth user: {user_id} for {provider}")
+
+                # 返回用户信息
+                return {
+                    'user_id': user_id,
+                    'email': email,
+                    'name': name,
+                    'avatar_url': avatar_url,
+                    'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
+                    'updated_at': now.strftime("%Y-%m-%d %H:%M:%S")
+                }
+
+        except Exception as e:
+            conn.rollback()
+            self._log(f"Error creating OAuth user: {e}", level='error')
+            return None
+
+    def bind_oauth_account(self, user_id: str, provider: str,
+                           open_id: str, union_id: str = None,
+                           access_token: str = None,
+                           access_token_expires_at: datetime = None,
+                           refresh_token: str = None,
+                           provider_data: dict = None) -> bool:
+        """
+        为现有用户绑定 OAuth 账号
+
+        Args:
+            user_id: 用户 ID
+            provider: OAuth 提供商
+            open_id: 用户 openid
+            union_id: 统一 ID
+            access_token: OAuth 访问令牌
+            access_token_expires_at: 令牌过期时间
+            refresh_token: OAuth 刷新令牌
+            provider_data: 原始用户数据
+
+        Returns:
+            bool: 是否绑定成功
+        """
+        conn = self._ensure_connection()
+        now = datetime.now()
+
+        try:
+            with conn.cursor() as cursor:
+                # 检查是否已绑定
+                cursor.execute("""
+                    SELECT id FROM user_oauth_accounts
+                    WHERE provider = %s AND open_id = %s
+                """, (provider, open_id))
+
+                if cursor.fetchone():
+                    self._log(f"OAuth account already bound: {provider}:{open_id}")
+                    return False
+
+                # 绑定 OAuth 账号
+                if provider_data:
+                    provider_data_json = json.dumps(provider_data, ensure_ascii=False)
+                else:
+                    provider_data_json = None
+
+                cursor.execute("""
+                    INSERT INTO user_oauth_accounts
+                    (user_id, provider, open_id, union_id, access_token, access_token_expires_at,
+                     refresh_token, provider_data, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (user_id, provider, open_id, union_id, access_token,
+                      access_token_expires_at, refresh_token, provider_data_json, now, now))
+
+                conn.commit()
+                self._log(f"Bound OAuth account: {provider}:{open_id} to user {user_id}")
+                return True
+
+        except Exception as e:
+            conn.rollback()
+            self._log(f"Error binding OAuth account: {e}", level='error')
+            return False
+
+    def unbind_oauth_account(self, user_id: str, provider: str) -> bool:
+        """
+        解绑 OAuth 账号
+
+        Args:
+            user_id: 用户 ID
+            provider: OAuth 提供商
+
+        Returns:
+            bool: 是否解绑成功
+        """
+        conn = self._ensure_connection()
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    DELETE FROM user_oauth_accounts
+                    WHERE user_id = %s AND provider = %s
+                """, (user_id, provider))
+
+                conn.commit()
+                deleted_count = cursor.rowcount
+
+                if deleted_count > 0:
+                    self._log(f"Unbound OAuth account: {provider} from user {user_id}")
+
+                return deleted_count > 0
+
+        except Exception as e:
+            conn.rollback()
+            self._log(f"Error unbinding OAuth account: {e}", level='error')
+            return False
+
+    def update_user_last_login(self, user_id: str, provider: str) -> bool:
+        """
+        更新用户最后登录时间和方式
+
+        Args:
+            user_id: 用户 ID
+            provider: 登录提供商
+
+        Returns:
+            bool: 是否更新成功
+        """
+        conn = self._ensure_connection()
+        users_table = self._validate_table_name(self._get_config('MYSQL_TABLE_USERS', 'users'))
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(f"""
+                    UPDATE {users_table}
+                    SET last_login_at = %s, last_login_provider = %s, updated_at = %s
+                    WHERE user_id = %s
+                """, (datetime.now(), provider, datetime.now(), user_id))
+
+                conn.commit()
+                return cursor.rowcount > 0
+
+        except Exception as e:
+            conn.rollback()
+            self._log(f"Error updating last login: {e}", level='error')
+            return False
+
+    def fetch_user_oauth_accounts(self, user_id: str) -> List[Dict]:
+        """
+        获取用户绑定的所有 OAuth 账号
+
+        Args:
+            user_id: 用户 ID
+
+        Returns:
+            List[Dict]: OAuth 账号列表
+        """
+        conn = self._ensure_connection()
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT provider, open_id, union_id, created_at, updated_at
+                    FROM user_oauth_accounts
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                """, (user_id,))
+
+                rows = cursor.fetchall()
+                result = []
+                for row in rows:
+                    result.append({
+                        'provider': row['provider'],
+                        'open_id': row['open_id'],
+                        'union_id': row.get('union_id'),
+                        'created_at': row['created_at'].strftime("%Y-%m-%d %H:%M:%S"),
+                        'updated_at': row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    })
+                return result
+
+        except Exception as e:
+            self._log(f"Error fetching user OAuth accounts: {e}", level='error')
+            return []
+
+    def update_oauth_tokens(self, user_id: str, provider: str,
+                            access_token: str = None,
+                            access_token_expires_at: datetime = None,
+                            refresh_token: str = None) -> bool:
+        """
+        更新 OAuth 令牌
+
+        Args:
+            user_id: 用户 ID
+            provider: OAuth 提供商
+            access_token: 新的访问令牌
+            access_token_expires_at: 令牌过期时间
+            refresh_token: 新的刷新令牌
+
+        Returns:
+            bool: 是否更新成功
+        """
+        conn = self._ensure_connection()
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE user_oauth_accounts
+                    SET access_token = %s, access_token_expires_at = %s,
+                        refresh_token = %s, updated_at = %s
+                    WHERE user_id = %s AND provider = %s
+                """, (access_token, access_token_expires_at, refresh_token,
+                      datetime.now(), user_id, provider))
+
+                conn.commit()
+                return cursor.rowcount > 0
+
+        except Exception as e:
+            conn.rollback()
+            self._log(f"Error updating OAuth tokens: {e}", level='error')
+            return False
 
 
 mysql_service = MySQLService()

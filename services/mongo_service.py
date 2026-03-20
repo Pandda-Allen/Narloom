@@ -58,6 +58,13 @@ class MongoService(BaseService):
             self._work_details_collection.create_index('work_id', unique=True)
             self._log(f"Created index: {work_details_collection}.work_id (unique)")
 
+            # 为 work_details 添加复合索引
+            self._work_details_collection.create_index([('work_id', 1), ('asset_ids', 1)])
+            self._log(f"Created index: {work_details_collection}.work_id + asset_ids")
+
+            self._work_details_collection.create_index([('work_id', 1), ('chapter_ids', 1)])
+            self._log(f"Created index: {work_details_collection}.work_id + chapter_ids")
+
             self._initialized = True
             self._log("MongoDB service initialized successfully")
         except Exception as e:
