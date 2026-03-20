@@ -114,7 +114,7 @@ def create_tables(config):
                     author_id CHAR(36) NOT NULL,
                     title VARCHAR(255) NOT NULL,
                     genre VARCHAR(100) DEFAULT '',
-                    tags VARCHAR(500),
+                    tags VARCHAR(1000) COMMENT 'JSON 格式存储的标签数组',
                     status VARCHAR(50) DEFAULT 'draft',
                     chapter_count INT DEFAULT 0,
                     word_count INT DEFAULT 0,

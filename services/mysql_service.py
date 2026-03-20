@@ -363,10 +363,10 @@ class MySQLService(BaseService):
             tags = json.dumps(tags, ensure_ascii=False)
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (work_id, author_id, title, genre, status, word_count, description, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO {table} (work_id, author_id, title, genre, tags, status, word_count, description, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (work_id, author_id, title, genre, status,
+            cursor.execute(sql, (work_id, author_id, title, genre, tags, status,
                                  word_count, description, now, now))
             conn.commit()
         return {
@@ -388,13 +388,17 @@ class MySQLService(BaseService):
         conn = self._ensure_connection()
         table = self._validate_table_name(self._get_config('MYSQL_TABLE_WORKS', 'works'))
         now = datetime.now()
-        allowed_fields = ['title', 'genre', 'status', 'word_count', 'description']
+        allowed_fields = ['title', 'genre', 'tags', 'status', 'word_count', 'description']
         set_clauses = []
         params = []
         for field in allowed_fields:
             if field in update_data:
+                value = update_data[field]
+                # tags 字段如果是列表，转换为 JSON 字符串
+                if field == 'tags' and value is not None and not isinstance(value, str):
+                    value = json.dumps(value, ensure_ascii=False)
                 set_clauses.append(f"{field} = %s")
-                params.append(update_data[field])
+                params.append(value)
 
         set_clauses.append("updated_at = %s")
         params.append(now)
@@ -412,6 +416,12 @@ class MySQLService(BaseService):
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                # tags 字段从 JSON 字符串转回 Python 列表
+                if row.get('tags'):
+                    try:
+                        row['tags'] = json.loads(row['tags'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
             return row
 
     def fetch_work_by_id(self, work_id: str) -> Optional[Dict]:
@@ -425,6 +435,12 @@ class MySQLService(BaseService):
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                # tags 字段从 JSON 字符串转回 Python 列表
+                if row.get('tags'):
+                    try:
+                        row['tags'] = json.loads(row['tags'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
             return row
 
     def fetch_works_by_author_id(self, author_id: str, status: Optional[str] = None,
@@ -447,6 +463,12 @@ class MySQLService(BaseService):
                 for row in rows:
                     row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                     row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    # tags 字段从 JSON 字符串转回 Python 列表
+                    if row.get('tags'):
+                        try:
+                            row['tags'] = json.loads(row['tags'])
+                        except (json.JSONDecodeError, TypeError):
+                            pass
             return rows
 
     def delete_work(self, work_id: str) -> bool:
