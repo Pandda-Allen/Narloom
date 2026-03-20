@@ -19,6 +19,9 @@ def create_app(config_name='default'):
     # 初始化 Anime Tool 服务
     init_anime_tool_service(app)
 
+    # 初始化视频生成服务
+    init_video_generation_service(app)
+
     # 注册 Flask Blueprints
     register_blueprints(app)
 
@@ -72,6 +75,18 @@ def init_anime_tool_service(app):
         app.logger.info("Aliyun OSS service is ready to use.")
     else:
         app.logger.error("Failed to initialize Aliyun OSS service.")
+
+def init_video_generation_service(app):
+    """初始化视频生成服务"""
+    from services.video_generation_service import video_generation_service
+
+    video_generation_service.init_app(app)
+
+    # 触发初始化
+    if video_generation_service._initialized:
+        app.logger.info("Video generation service is ready to use.")
+    else:
+        app.logger.error("Failed to initialize video generation service.")
 
 
 def register_blueprints(app):

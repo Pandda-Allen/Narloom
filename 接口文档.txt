@@ -768,7 +768,7 @@ offset: 0                             // 可选，默认 0
   "user_id": "uuid-string",           // 可选
   "task_name": "任务名称",             // 可选
   "task_type": "chat",                // 必填，enum: enhance|abstract|generate|chat|translate|summarize|rewrite|code|analysis
-  "model": "deepseek-chat",           // 可选，默认 deepseek-chat
+  "model": "qwen3.5-plus",            // 可选，默认 qwen3.5-plus
   "content": {
     "user_prompt": "用户提示词",        // 必填
     "system_prompt": "系统提示词"       // 可选
@@ -815,9 +815,9 @@ offset: 0                             // 可选，默认 0
   "status": "success",
   "message": "Models fetched successfully",
   "data": {
-    "models": ["deepseek-chat", "deepseek-coder"]
+    "models": ["qwen3.5-plus", "qwen-vl-max", "wanx2.0-t2v"]
   },
-  "count": 2
+  "count": 3
 }
 ```
 
@@ -832,7 +832,7 @@ offset: 0                             // 可选，默认 0
   "status": "success",
   "message": "Health check completed",
   "data": {
-    "service": "deepseek-ai",
+    "service": "qwen-ai",
     "initialized": true,
     "api_key_configured": true
   }
@@ -877,7 +877,7 @@ offset: 0                             // 可选，默认 0
       "supported_languages": ["zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "es-ES", "de-DE", "ru-RU"],
       "max_tokens": 4096,
       "supports_streaming": false,
-      "provider": "DeepSeek",
+      "provider": "Alibaba Cloud DashScope (Qwen)",
       "api_version": "v1"
     }
   }
@@ -983,55 +983,163 @@ marker: ""                              // 可选，OSS 分页标记（oss_list=
 ### 生成动画（图生视频）
 - API: `POST /rest/v1/anime-tool/generateAnime`
 - Content-Type: `application/json` 或 `multipart/form-data`
-- Frontend Request (JSON 方式 - 使用已有图片):
+
+**支持四种模式**：
+1. `analyze`: 分析漫画图片，检测分格
+2. `generate`: 为分格生成动画（默认）
+3. `chat`: 多轮对话交互
+4. `confirm`: 确认保存生成的视频
+
+#### 模式 1: 分析漫画图片
+- Frontend Request:
 ```json
 {
   "user_id": "uuid-string",             // 必填，用户 ID
+  "mode": "analyze",                    // 分析模式
   "asset_id": "uuid-string",            // 可选，已上传图片的资产 ID
-  "oss_object_key": "xxx.jpg",          // 可选，OSS 对象键（与 asset_id 二选一）
-  "parameters": {                       // 可选，生成参数
-    "duration": 5,                      // 视频时长（秒）
-    "fps": 24,                          // 帧率
-    "style": "anime",                   // 风格类型
-    "motion_strength": 0.7,             // 运动强度
-    "prompt": "微风吹过头发"              // 生成提示词
-  }
+  "session_id": "uuid-string"           // 可选，会话 ID（用于多轮对话）
 }
-```
-- Frontend Request (Form 方式 - 上传新图片):
-```
-user_id: uuid-string                    // 必填
-picture: <file>                         // 可选，新图片文件
-parameters: '{"duration": 5, "fps": 24}' // 可选，生成参数 JSON 字符串
 ```
 - Backend Response (Success):
 ```json
 {
   "status": "success",
-  "message": "Anime generation task created (placeholder - implementation pending)",
+  "message": "Comic analysis completed",
   "data": {
-    "task_id": "uuid-string",
-    "status": "pending",
-    "source": {
-      "type": "asset",                  // asset | oss | new_upload
-      "asset_id": "uuid-string",
-      "object_key": "comic/user123/2026/03/xxx.jpg",
-      "url": "https://oss-url.com/xxx.jpg"
+    "session_id": "uuid-string",
+    "analysis": {
+      "panels": [
+        {
+          "index": 1,
+          "bbox": [10, 10, 200, 150],
+          "description": "一个角色站在雨中"
+        },
+        ...
+      ],
+      "scene_description": "雨天场景，整体氛围忧郁"
     },
-    "parameters": {
-      "duration": 5,
-      "fps": 24
-    },
-    "note": "This is a placeholder response. Video generation logic to be implemented."
+    "model_used": "qwen-vl-max"
+  }
+}
+```
+
+#### 模式 2: 生成动画
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",             // 必填，用户 ID
+  "mode": "generate",                   // 生成模式（可省略，默认）
+  "asset_id": "uuid-string",            // 可选，已上传图片的资产 ID
+  "session_id": "uuid-string",          // 可选，会话 ID
+  "parameters": {                       // 可选，生成参数
+    "duration": 3,                      // 每个分格时长（秒）
+    "transition_style": "smooth",       // 转场风格：smooth|fade|slide|zoom
+    "prompt": "微风吹过头发",            // 自定义提示词
+    "style": "anime",                   // 风格类型
+    "motion_strength": 0.5              // 运动强度 0-1
+  }
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Anime generation completed (preview - not saved)",
+  "data": {
+    "session_id": "uuid-string",
+    "video_url": "https://xxx.com/video.mp4",
+    "preview_url": "https://xxx.com/preview.gif",
+    "panel_count": 4,
+    "total_duration": 12,
+    "transition_style": "smooth",
+    "is_preview": true,
+    "note": "Please confirm to save the generated video"
+  }
+}
+```
+
+#### 模式 3: 多轮对话交互
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",             // 必填，用户 ID
+  "mode": "chat",                       // 对话模式
+  "asset_id": "uuid-string",            // 可选，关联的图片
+  "session_id": "uuid-string",          // 可选，会话 ID
+  "message": "如何让这个场景更加生动？"  // 用户消息
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Chat response generated",
+  "data": {
+    "session_id": "uuid-string",
+    "response": "建议添加雨滴落下的动态效果，...",
+    "summary": null,                    // 当超过轮次阈值时会有历史总结
+    "turn_count": 3
+  }
+}
+```
+
+#### 模式 4: 确认保存视频
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",             // 必填
+  "mode": "confirm",                    // 确认模式
+  "video_url": "https://xxx.com/video.mp4",  // 需要保存的视频 URL
+  "preview_url": "https://xxx.com/preview.gif"
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Video saved successfully",
+  "data": {
+    "asset_id": "uuid-string",
+    "video_url": "https://xxx.com/video.mp4",
+    "preview_url": "https://xxx.com/preview.gif"
   },
   "count": 1
 }
 ```
+
+### 模型配置管理
+- API: `POST /rest/v1/anime-tool/setModelConfig`
+- Description: 动态设置视频生成使用的模型配置
+
+- Frontend Request:
+```json
+{
+  "user_id": "uuid-string",
+  "model_config": {
+    "vision_model": "qwen-vl-max",      // 视觉理解模型
+    "video_model": "wanx2.0-t2v",       // 视频生成模型
+    "panel_detect_model": "qwen-vl-max" // 分格检测模型
+  }
+}
+```
+- Backend Response (Success):
+```json
+{
+  "status": "success",
+  "message": "Model configuration updated",
+  "data": {
+    "vision_model": "qwen-vl-max",
+    "video_model": "wanx2.0-t2v",
+    "panel_detect_model": "qwen-vl-max"
+  }
+}
+```
+
 - Error Responses:
-  - 400: Request body must be JSON or multipart/form-data / Missing required fields (user_id) / Must provide either asset_id, oss_object_key, or picture file
+  - 400: Request body must be JSON or multipart/form-data / Missing required fields (user_id) / Must provide either asset_id, oss_object_key, or picture file / Message is required for chat mode / Unknown mode
   - 403: Unauthorized: This asset does not belong to the user
-  - 404: Asset not found
-  - 500: Failed to upload picture / Failed to get picture URL
+  - 404: Asset not found / No panels detected in the image
+  - 500: Failed to upload picture / Failed to get picture URL / Analysis failed / Panel detection failed / Animation generation failed
 
 ---
 
