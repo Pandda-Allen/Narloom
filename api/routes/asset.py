@@ -14,6 +14,7 @@ from utils.resource_helper import (
 )
 from services.mysql_service import MySQLService
 from services.mongo_service import MongoService
+from services.db import work_service
 import logging
 
 asset_bp = Blueprint('asset', __name__)
@@ -32,6 +33,12 @@ def create_asset():
     work_id = data.get('work_id')
     asset_data = data.get('asset_data', {})
 
+    # 如果传入了 work_id，验证作品是否存在
+    if work_id:
+        work = work_service.fetch_work_by_id(work_id)
+        if not work:
+            return error_response('Work not found', 404)
+
     # 插入 MySQL 数据库
     mysql_row = MySQLService().insert_asset(user_id, asset_type, work_id)
     asset_id = mysql_row['asset_id']
@@ -44,6 +51,14 @@ def create_asset():
         # 回滚：删除 MySQL 中的数据
         MySQLService().delete_asset(asset_id)
         return error_response('Failed to create asset', 500)
+
+    # 如果 work_id 有效，同步关联到 MongoDB 的 work_details
+    if work_id:
+        try:
+            MongoService().add_asset_to_work(work_id, asset_id)
+        except Exception as e:
+            logger.error(f"Error adding asset to work: {str(e)}")
+            # 这里不回滚，因为资产已经创建成功，只是关联失败不影响主体功能
 
     result = {
         'asset_id': mysql_row['asset_id'],

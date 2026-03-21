@@ -4,8 +4,8 @@
 """
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
-from services.mongo_service import MongoService
-from services.mysql_service import MySQLService
+from pymongo import MongoClient
+from pymongo.collection import Collection
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,8 +23,24 @@ class ConversationHistory:
     DEFAULT_EXPIRY_HOURS = 24  # 会话过期时间（小时）
 
     def __init__(self):
-        self.mongo_service = MongoService()
-        self.mysql_service = MySQLService()
+        self._mongo_client = None
+        self._collection = None
+
+    def init_app(self, app):
+        """初始化 MongoDB 连接"""
+        with app.app_context():
+            from flask import current_app
+            mongo_uri = current_app.config.get('MONGO_URI')
+            mongo_db = current_app.config.get('MONGO_DB')
+            if mongo_uri and mongo_db:
+                self._mongo_client = MongoClient(mongo_uri)
+                self._collection = self._mongo_client[mongo_db][self.COLLECTION_NAME]
+
+    def _get_collection(self) -> Optional[Collection]:
+        """获取 MongoDB collection"""
+        if self._collection is None:
+            raise RuntimeError("MongoDB service not initialized. Call init_app first.")
+        return self._collection
 
     def get_session(self, session_id: str) -> Optional[Dict]:
         """获取会话信息"""
@@ -213,14 +229,6 @@ class ConversationHistory:
         except Exception as e:
             logger.error(f"Error cleaning up expired sessions: {e}")
             return 0
-
-    def _get_collection(self):
-        """获取 MongoDB collection"""
-        # 确保 MongoDB 已初始化
-        if not self.mongo_service._initialized:
-            raise RuntimeError("MongoDB service not initialized")
-
-        return self.mongo_service._work_details_collection.database[self.COLLECTION_NAME]
 
     def _summarize_messages(self, messages: List[Dict]) -> Optional[str]:
         """
