@@ -35,7 +35,7 @@ class AnimeToolService(BaseService):
         access_key_id = self._get_config('ALIYUN_OSS_ACCESS_KEY_ID')
         access_key_secret = self._get_config('ALIYUN_OSS_ACCESS_KEY_SECRET')
         bucket_name = self._get_config('ALIYUN_OSS_BUCKET_NAME')
-        cdn_domain = self._get_config('ALIYUN_OSS_CDN_DOMAIN', '')
+        cdn_domain = self._get_config('ALIYUN_OSS_CDN_DOMAIN')  # 无cdn配置则不使用cdn
 
         if not all([endpoint, access_key_id, access_key_secret, bucket_name]):
             self._log("Aliyun OSS configuration incomplete", level='error')
