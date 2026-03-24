@@ -7,7 +7,7 @@ from utils.response_helper import api_response, error_response
 from utils.decorators import handle_errors, jwt_required, optional_jwt
 from services.mysql_service import mysql_service
 from services.mongo_service import MongoService
-from services.anime_tool_service import anime_tool_service
+from services.picture_service import picture_service
 from services.jwt_service import jwt_service
 from services.token_blacklist_service import token_blacklist_service
 import logging
@@ -672,7 +672,7 @@ def delete_user(user_id: str):
             oss_object_key = asset_data.get('oss_object_key')
             if oss_object_key:
                 try:
-                    anime_tool_service.delete_picture(oss_object_key)
+                    picture_service.delete_picture(oss_object_key)
                     logger.info(f"Deleted OSS picture for asset: {asset_id}")
                 except Exception as e:
                     logger.warning(f"Failed to delete OSS picture {asset_id}: {e}")

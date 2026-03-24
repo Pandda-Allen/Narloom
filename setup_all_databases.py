@@ -40,7 +40,8 @@ def get_mongo_config():
         'uri': os.getenv('MONGO_URI', 'mongodb://localhost:27017/'),
         'database': os.getenv('MONGO_DB', 'narloom'),
         'asset_collection': os.getenv('MONGO_ASSET_DATA_COLLECTION', 'asset_data'),
-        'work_collection': os.getenv('MONGO_WORK_DETAILS_COLLECTION', 'work_details')
+        'work_collection': os.getenv('MONGO_WORK_DETAILS_COLLECTION', 'work_details'),
+        'conversation_collection': os.getenv('MONGO_CONVERSATION_COLLECTION', 'conversation_history')
     }
 
 def create_mysql_database(config):
@@ -243,10 +244,12 @@ def setup_mongo_database(config):
         # 创建或获取集合
         asset_collection = db[config['asset_collection']]
         work_collection = db[config['work_collection']]
+        conversation_collection = db[config['conversation_collection']]
 
         print(f"[OK] 集合准备完成:")
         print(f"  - {config['asset_collection']} (资产数据)")
         print(f"  - {config['work_collection']} (作品详情)")
+        print(f"  - {config['conversation_collection']} (对话历史)")
 
         # 创建索引
         try:
@@ -265,6 +268,16 @@ def setup_mongo_database(config):
             work_collection.create_index([('work_id', 1), ('chapter_ids', 1)], name='work_id_chapter_ids_idx')
             print(f"[OK] 已创建索引：{config['work_collection']}.work_id + chapter_ids (复合)")
 
+            # conversation_history 集合索引
+            conversation_collection.create_index('session_id', unique=True, name='session_id_unique')
+            print(f"[OK] 已创建索引：{config['conversation_collection']}.session_id (唯一)")
+
+            conversation_collection.create_index('user_id', name='user_id_idx')
+            print(f"[OK] 已创建索引：{config['conversation_collection']}.user_id")
+
+            conversation_collection.create_index('expires_at', name='expires_at_idx')
+            print(f"[OK] 已创建索引：{config['conversation_collection']}.expires_at")
+
         except PyMongoError as e:
             if 'already exists' in str(e):
                 print(f"[OK] 索引已存在")
@@ -274,10 +287,12 @@ def setup_mongo_database(config):
         # 显示集合统计信息
         asset_count = asset_collection.count_documents({})
         work_count = work_collection.count_documents({})
+        conversation_count = conversation_collection.count_documents({})
 
         print(f"[STATS] 当前数据统计:")
         print(f"  - {config['asset_collection']}: {asset_count} 个文档")
         print(f"  - {config['work_collection']}: {work_count} 个文档")
+        print(f"  - {config['conversation_collection']}: {conversation_count} 个文档")
 
         return True
 
@@ -320,6 +335,7 @@ def main():
     print(f"  数据库：{mongo_config['database']}")
     print(f"  资产集合：{mongo_config['asset_collection']}")
     print(f"  作品集合：{mongo_config['work_collection']}")
+    print(f"  对话历史集合：{mongo_config['conversation_collection']}")
 
     print("\n" + "=" * 60)
     print("开始设置 MySQL 数据库...")
@@ -359,6 +375,14 @@ def main():
     print("- MySQL 表结构已创建，可以直接使用")
     print("- MongoDB 集合和索引已确保存在")
     print("- 如果遇到问题，请检查数据库服务是否正常运行")
+    print("\n已创建的 MongoDB 索引:")
+    print(f"  - {mongo_config['asset_collection']}.asset_id (唯一索引)")
+    print(f"  - {mongo_config['work_collection']}.work_id (唯一索引)")
+    print(f"  - {mongo_config['work_collection']}.work_id + asset_ids (复合索引)")
+    print(f"  - {mongo_config['work_collection']}.work_id + chapter_ids (复合索引)")
+    print(f"  - {mongo_config['conversation_collection']}.session_id (唯一索引)")
+    print(f"  - {mongo_config['conversation_collection']}.user_id (普通索引)")
+    print(f"  - {mongo_config['conversation_collection']}.expires_at (普通索引)")
 
 if __name__ == "__main__":
     main()

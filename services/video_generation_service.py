@@ -38,16 +38,17 @@ class VideoGenerationService:
 
         # 使用与 Qwen AI 相同的配置
         self._api_key = qwen_ai_service.api_key
+        # 万象视频生成 API 使用 dashscope 标准 API
         self._api_base = "https://dashscope.aliyuncs.com/api/v1"
         self._initialized = True
 
     # ==================== 模型配置管理 ====================
     def get_current_model_config(self) -> Dict[str, Any]:
         """获取当前使用的模型配置"""
-        # 默认使用通义万相进行视频生成
+        # 默认使用万象 wan2.6-i2v 进行视频生成
         return {
-            "vision_model": "qwen-vl-max",      # 视觉理解模型
-            "video_model": "wanx2.0-t2v",        # 视频生成模型
+            "vision_model": "qwen-vl-max",       # 视觉理解模型
+            "video_model": "wan2.6-i2v",         # 视频生成模型（万象）
             "panel_detect_model": "qwen-vl-max"  # 分格检测模型
         }
 
@@ -164,11 +165,69 @@ class VideoGenerationService:
             }
 
     # ==================== 视频生成 ====================
+    def generate_single_image_anime(self,
+                                     image_url: str,
+                                     prompt: str,
+                                     duration: int = 5,
+                                     motion_strength: float = 0.5) -> Dict[str, Any]:
+        """
+        为单张图片生成动画（不进行分格裁剪）
+
+        Args:
+            image_url: 图片 URL
+            prompt: 动画生成提示词
+            duration: 视频时长（秒）
+            motion_strength: 运动强度 0-1
+
+        Returns:
+            Dict: 生成的视频信息
+        """
+        model_config = self.get_current_model_config()
+        video_model = model_config["video_model"]
+
+        # 构建视频生成请求 - 适配万象 wan2.6-i2v 格式
+        payload = {
+            "model": video_model,
+            "input": {
+                "img_url": image_url,
+                "prompt": prompt
+            },
+            "parameters": {
+                "duration": duration,
+                "resolution": "720P",
+                "motion_strength": motion_strength
+            }
+        }
+
+        try:
+            # 调用视频生成 API
+            video_result = self._call_video_generation_api(payload)
+
+            if video_result.get("success"):
+                return {
+                    "success": True,
+                    "video_url": video_result.get("video_url"),
+                    "preview_url": video_result.get("preview_url"),
+                    "duration": duration,
+                    "model_used": video_result.get("model_used", video_model),
+                    "task_id": video_result.get("task_id")
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": video_result.get("error")
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     def generate_panel_animation(self,
                                   image_url: str,
                                   panel_bbox: List[int],
                                   prompt: str,
-                                  duration: int = 3,
+                                  duration: int = 5,
                                   motion_strength: float = 0.5) -> Dict[str, Any]:
         """
         为单个分格生成动态动画
@@ -189,7 +248,7 @@ class VideoGenerationService:
         # 裁剪分格区域（通过后端处理）
         cropped_image_url = self._crop_image_region(image_url, panel_bbox)
 
-        # 构建视频生成请求
+        # 构建视频生成请求 - 适配万象 wan2.6-i2v 格式
         payload = {
             "model": video_model,
             "input": {
@@ -198,8 +257,8 @@ class VideoGenerationService:
             },
             "parameters": {
                 "duration": duration,
-                "motion_strength": motion_strength,
-                "resolution": "720p"
+                "resolution": "720P",
+                "motion_strength": motion_strength
             }
         }
 
@@ -213,7 +272,7 @@ class VideoGenerationService:
                     "video_url": video_result.get("video_url"),
                     "preview_url": video_result.get("preview_url"),
                     "duration": duration,
-                    "model_used": video_model,
+                    "model_used": video_result.get("model_used", video_model),
                     "task_id": video_result.get("task_id")
                 }
             else:
@@ -247,6 +306,7 @@ class VideoGenerationService:
         # 1. 为每个分格生成动画
         panel_videos = []
         for i, (panel, prompt) in enumerate(zip(panels, prompts)):
+            print(f"Generating anime for panel {i+1}/{len(panels)} with prompt: {prompt}")  # 调试日志
             bbox = panel.get("bbox")
             if not bbox:
                 continue
@@ -361,6 +421,33 @@ class VideoGenerationService:
             return "对话总结不可用"
 
     # ==================== 内部辅助方法 ====================
+    def _build_dashscope_headers(self, async_mode: bool = True, extra_headers: Dict[str, str] = None) -> Dict[str, str]:
+        """
+        构建 DashScope API 请求头
+
+        Args:
+            async_mode: 是否启用异步模式（默认 True）
+            extra_headers: 额外的请求头（可选，用于扩展）
+
+        Returns:
+            Dict: 包含必要请求头的字典
+        """
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "DashScope-VideoGen-Client/1.0"
+        }
+
+        # 异步模式添加额外 header
+        if async_mode:
+            headers["X-DashScope-Async"] = "enable"
+
+        # 合并额外请求头
+        if extra_headers:
+            headers.update(extra_headers)
+
+        return headers
+
     def _call_vision_model(self,
                            model: str,
                            system_prompt: str,
@@ -368,22 +455,31 @@ class VideoGenerationService:
                            context: List[Dict] = None,
                            expect_json: bool = False) -> Any:
         """调用视觉模型"""
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json"
-        }
+        headers = self._build_dashscope_headers(async_mode=False)
+
+        # 将图片 URL 转换为 base64 编码（避免 URL 签名问题）
+        image_data = self._image_url_to_base64(image_url)
 
         messages = [{"role": "system", "content": system_prompt}]
         if context:
             messages.extend(context)
 
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "请分析这张图片"},
-                {"type": "image_url", "image_url": image_url}
-            ]
-        })
+        # 使用 base64 编码的图片数据
+        if image_data:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "请分析这张图片"},
+                    {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image_data}"}
+                ]
+            })
+        else:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "请分析这张图片\\n图片 URL: " + image_url}
+                ]
+            })
 
         payload = {
             "model": model,
@@ -393,8 +489,11 @@ class VideoGenerationService:
         if expect_json:
             payload["response_format"] = {"type": "json_object"}
 
+        # 使用 DashScope 兼容模式 API
+        api_base = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
         response = requests.post(
-            f"{self._api_base}/services/aigc/text-generation/generation",
+            f"{api_base}/chat/completions",
             headers=headers,
             json=payload,
             timeout=60
@@ -404,63 +503,186 @@ class VideoGenerationService:
             raise Exception(f"Vision API error: {response.status_code} - {response.text}")
 
         result = response.json()
-        content = result.get("output", {}).get("text", "")
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
 
         if expect_json:
             return json.loads(content)
         return content
 
+    def _image_url_to_base64(self, image_url: str) -> Optional[str]:
+        """
+        将图片 URL 转换为 base64 编码
+
+        Args:
+            image_url: 图片 URL
+
+        Returns:
+            base64 编码字符串，失败返回 None
+        """
+        try:
+            # 下载图片
+            response = requests.get(image_url, timeout=10)
+            if response.status_code == 200:
+                return base64.b64encode(response.content).decode('utf-8')
+        except Exception as e:
+            current_app.logger.warning(f"Failed to download image for base64 conversion: {e}")
+        return None
+
     def _call_video_generation_api(self, payload: Dict) -> Dict:
-        """调用视频生成 API"""
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json"
+        """
+        调用视频生成 API（支持万象 wan2.6-i2v 和 wanx2.0-t2v）
+
+        Args:
+            payload: 视频生成请求参数
+
+        Returns:
+            Dict: 包含 success, video_url, task_id 等信息的字典
+        """
+        # 构建请求头
+        headers = self._build_dashscope_headers(async_mode=True)
+
+        model = payload.get("model", "wan2.6-i2v")
+        api_base = "https://dashscope.aliyuncs.com/api/v1"
+
+        # 万象视频生成的 API 格式
+        wan_payload = {
+            "model": model,
+            "input": {
+                "img_url": payload["input"].get("img_url"),
+                "prompt": payload["input"].get("prompt")
+            },
+            "parameters": {
+                "duration": payload.get("parameters", {}).get("duration", 5),
+                "resolution": payload.get("parameters", {}).get("resolution", "720P"),
+                "motion_strength": payload.get("parameters", {}).get("motion_strength", 0.5)
+            }
         }
+
+        current_app.logger.info(f"Request payload: {json.dumps(wan_payload, ensure_ascii=False)}")
 
         # 提交任务
         submit_response = requests.post(
-            f"{self._api_base}/services/aigc/video-generation/v1/tasks",
+            f"{api_base}/services/aigc/video-generation/video-synthesis",
             headers=headers,
-            json=payload,
+            json=wan_payload,
             timeout=30
         )
 
-        if submit_response.status_code != 200:
-            return {
-                "success": False,
-                "error": f"Video generation API error: {submit_response.status_code}"
+        current_app.logger.info(f"Submit response status: {submit_response.status_code}")
+        current_app.logger.info(f"Submit response body: {submit_response.text}")
+
+        if submit_response.status_code not in [200, 201]:
+            # 如果 wan2.6-i2v API 失败，尝试回退到 wanx2.0-t2v
+            current_app.logger.warning(f"wan2.6-i2v API failed ({submit_response.status_code}), trying fallback to wanx2.0-t2v")
+
+            model = "wanx2.0-t2v"
+            fallback_payload = {
+                "model": model,
+                "input": {
+                    "img_url": payload["input"].get("image"),
+                    "prompt": payload["input"].get("prompt")
+                },
+                "parameters": {
+                    "duration": payload.get("parameters", {}).get("duration", 5),
+                    "resolution": payload.get("parameters", {}).get("resolution", "720P")
+                }
             }
 
-        task_result = submit_response.json()
-        task_id = task_result.get("task_id")
-
-        # 轮询任务状态
-        for _ in range(60):  # 最多等待 60 秒
-            time.sleep(5)
-
-            status_response = requests.get(
-                f"{self._api_base}/services/aigc/video-generation/v1/tasks/{task_id}",
+            submit_response = requests.post(
+                f"{api_base}/services/aigc/video-generation/video-synthesis",
                 headers=headers,
+                json=fallback_payload,
                 timeout=30
             )
 
+            current_app.logger.info(f"Fallback submit response status: {submit_response.status_code}")
+            current_app.logger.info(f"Fallback submit response body: {submit_response.text}")
+
+            if submit_response.status_code not in [200, 201]:
+                return {
+                    "success": False,
+                    "error": f"Video generation API error: {submit_response.status_code} - {submit_response.text}"
+                }
+
+        task_result = submit_response.json()
+        current_app.logger.info(f"Task result JSON: {task_result}")
+
+        # 从响应中获取 task_id
+        # DashScope 任务 API 返回格式：{"request_id": "...", "task_id": "..."}
+        # 或者：{"request_id": "...", "output": {"task_id": "..."}}
+        task_id = (task_result.get("task_id") or
+                   task_result.get("output", {}).get("task_id") or
+                   task_result.get("request_id"))
+
+        if not task_id:
+            return {
+                "success": False,
+                "error": f"No task_id in response: {json.dumps(task_result)}"
+            }
+
+        # 轮询任务状态
+        max_wait_time = 180  # 最多等待 180 秒
+        start_time = time.time()
+        poll_interval = 5  # 每 5 秒轮询一次
+
+        # 构建轮询请求头（包含 Authorization，移除 X-DashScope-Task-Id）
+        poll_headers = self._build_dashscope_headers(async_mode=False)
+        # 添加请求 ID 用于追踪（使用 submit_response 返回的 request_id）
+        submit_request_id = task_result.get("request_id")
+        if submit_request_id:
+            poll_headers["X-DashScope-Request-Id"] = submit_request_id
+
+        while time.time() - start_time < max_wait_time:
+            time.sleep(poll_interval)
+
+            # 使用正确的 API 端点查询任务状态
+            status_url = f"{api_base}/tasks/{task_id}"
+
+            status_response = requests.get(
+                status_url,
+                headers=poll_headers,
+                timeout=30
+            )
+
+            current_app.logger.info(f"Polling task status: {status_response.status_code}")
+            current_app.logger.info(f"Status response body: {status_response.text}")
+
             if status_response.status_code == 200:
                 status_result = status_response.json()
-                status = status_result.get("status", "pending")
+                request_id = status_result.get("request_id")
+                output = status_result.get("output", {})
+                status = output.get("task_status")
 
-                if status == "succeeded":
+                current_app.logger.info(f"Task {task_id} status: {status}, output: {output}, request_id: {request_id}")
+
+                if status in ["succeeded", "COMPLETED", "SUCCEEDED"]:
+                    video_url = output.get("video_url") or output.get("output_video_url")
+
                     return {
                         "success": True,
-                        "video_url": status_result.get("output", {}).get("video_url"),
-                        "preview_url": status_result.get("output", {}).get("preview_url"),
-                        "task_id": task_id
+                        "video_url": video_url,
+                        "task_id": task_id,
+                        "model_used": model
                     }
-                elif status == "failed":
+                elif status in ["failed", "FAILED"]:
+                    error_msg = (output.get("task_error", {}).get("message") or
+                                 output.get("message") or
+                                 status_result.get("message", "Video generation failed"))
+                    current_app.logger.error(f"Task failed: {error_msg}")
                     return {
                         "success": False,
-                        "error": status_result.get("message", "Video generation failed")
+                        "error": error_msg
                     }
+            elif status_response.status_code == 404:
+                current_app.logger.error(f"Task {task_id} not found. API endpoint may be incorrect.")
+                return {
+                    "success": False,
+                    "error": f"Task not found at {status_url}"
+                }
+            else:
+                current_app.logger.warning(f"Status check failed with status: {status_response.status_code}, body: {status_response.text}")
 
+        current_app.logger.error(f"Task {task_id} timed out after {max_wait_time} seconds")
         return {
             "success": False,
             "error": "Video generation timeout"

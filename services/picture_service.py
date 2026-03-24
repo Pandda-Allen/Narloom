@@ -8,7 +8,7 @@ from typing import Optional, Dict, List, BinaryIO
 from .base_service import BaseService
 
 
-class AnimeToolService(BaseService):
+class PictureService(BaseService):
     """阿里云 OSS 服务类，负责漫画图片的存储操作"""
 
     _instance = None
@@ -35,7 +35,7 @@ class AnimeToolService(BaseService):
         access_key_id = self._get_config('ALIYUN_OSS_ACCESS_KEY_ID')
         access_key_secret = self._get_config('ALIYUN_OSS_ACCESS_KEY_SECRET')
         bucket_name = self._get_config('ALIYUN_OSS_BUCKET_NAME')
-        cdn_domain = self._get_config('ALIYUN_OSS_CDN_DOMAIN')  # 无cdn配置则不使用cdn
+        cdn_domain = self._get_config('ALIYUN_OSS_CDN_DOMAIN')  # 无 cdn 配置则不使用 cdn
 
         if not all([endpoint, access_key_id, access_key_secret, bucket_name]):
             self._log("Aliyun OSS configuration incomplete", level='error')
@@ -50,7 +50,6 @@ class AnimeToolService(BaseService):
             self._endpoint = endpoint
             self._bucket_name = bucket_name
             self._initialized = True
-            self._log("Aliyun OSS service initialized successfully")
         except Exception as e:
             self._log(f"Error initializing Aliyun OSS service: {e}", level='error')
             raise
@@ -274,13 +273,13 @@ class AnimeToolService(BaseService):
             }
 
     # ---------- 图片列表操作 ----------
-    def list_pictures(self, prefix: str = 'comic/', max_keys: int = 100, marker: str = '') -> Dict:
+    def list_pictures(self, prefix: str = 'comic/', max_codes: int = 100, marker: str = '') -> Dict:
         """
         列出 OSS 中的图片
 
         Args:
             prefix: 对象键前缀，用于筛选特定目录
-            max_keys: 最大返回数量
+            max_codes: 最大返回数量
             marker: 分页标记
 
         Returns:
@@ -289,7 +288,7 @@ class AnimeToolService(BaseService):
         bucket = self._ensure_bucket()
 
         try:
-            result = bucket.list_objects(prefix=prefix, max_keys=max_keys, marker=marker)
+            result = bucket.list_objects(prefix=prefix, max_codes=max_codes, marker=marker)
 
             pictures = []
             for obj in result.object_list:
@@ -384,4 +383,4 @@ class AnimeToolService(BaseService):
 
 
 # 全局实例
-anime_tool_service = AnimeToolService()
+picture_service = PictureService()

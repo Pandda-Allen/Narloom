@@ -61,7 +61,6 @@ class MySQLBaseService(BaseService):
                 autocommit=False
             )
             self._initialized = True
-            self._log("MySQL service initialized successfully")
         except Exception as e:
             self._log(f"Error initializing MySQL service: {e}", level='error')
             raise
@@ -227,7 +226,6 @@ class MySQLBaseService(BaseService):
                 """)
 
                 conn.commit()
-                self._log("All required tables ensured with indexes")
         except Exception as e:
             self._log(f"Error creating tables: {e}", level='error')
             pass

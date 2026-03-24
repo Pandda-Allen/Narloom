@@ -49,10 +49,8 @@ class AssetDataService(BaseService):
 
             # 创建索引
             self._collection.create_index('asset_id', unique=True)
-            self._log(f"Created index: {collection_name}.asset_id (unique)")
-
+            
             self._initialized = True
-            self._log("AssetData service initialized successfully")
         except Exception as e:
             self._log(f"MongoDB initialization error: {str(e)}", level='error')
             raise

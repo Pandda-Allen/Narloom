@@ -58,7 +58,7 @@ class QwenAIService:
 
             if self.api_key:
                 self._initialized = True
-                current_app.logger.info(f"Qwen AI Service initialized successfully. Using model: {self.default_model}")
+                current_app.logger.info(f"AI Service initialized successfully. Using model: {self.default_model}")
             else:
                 current_app.logger.warning("DashScope API key not found. AI Service will not work.")
 

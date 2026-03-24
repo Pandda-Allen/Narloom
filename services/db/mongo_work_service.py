@@ -49,17 +49,13 @@ class WorkDetailsService(BaseService):
 
             # 创建索引
             self._collection.create_index('work_id', unique=True)
-            self._log(f"Created index: {collection_name}.work_id (unique)")
 
             # 复合索引
             self._collection.create_index([('work_id', 1), ('asset_ids', 1)])
-            self._log(f"Created index: {collection_name}.work_id + asset_ids")
 
             self._collection.create_index([('work_id', 1), ('chapter_ids', 1)])
-            self._log(f"Created index: {collection_name}.work_id + chapter_ids")
 
             self._initialized = True
-            self._log("WorkDetails service initialized successfully")
         except Exception as e:
             self._log(f"MongoDB initialization error: {str(e)}", level='error')
             raise

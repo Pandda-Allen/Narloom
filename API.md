@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.0
-**更新日期**: 2026-03-21
+**版本**: 2.1
+**更新日期**: 2026-03-24
 **基础路径**: `/`
 
 ---
@@ -15,8 +15,9 @@
 4. [作品模块 (Work)](#作品模块-work)
 5. [章节模块 (Chapter)](#章节模块-chapter)
 6. [AI 服务 (AI)](#ai-服务-ai)
-7. [动漫工具 (Anime Tool)](#动漫工具-anime-tool)
-8. [数据库说明](#数据库说明)
+7. [图片服务 (Picture)](#图片服务-picture)
+8. [动画生成 (Anime)](#动画生成-anime)
+9. [数据库说明](#数据库说明)
 
 ---
 
@@ -143,7 +144,7 @@ Authorization: Bearer <access_token>
 **请求体**:
 ```json
 {
-  "refresh": false  // 可选，是否同时使 refresh_token 失效
+  "refresh": false
 }
 ```
 
@@ -163,24 +164,6 @@ Authorization: Bearer <access_token>
 
 **权限**: `@jwt_required`
 
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Current user fetched successfully",
-  "data": {
-    "user_id": "uuid",
-    "email": "user@example.com",
-    "name": "用户名",
-    "bio": "个人简介",
-    "phone": null,
-    "avatar_url": null,
-    "created_at": "2026-03-21T00:00:00",
-    "last_login_provider": "email"
-  }
-}
-```
-
 ---
 
 ### 6. 获取用户资料
@@ -189,8 +172,6 @@ Authorization: Bearer <access_token>
 
 **请求参数**:
 - `user_id` (路径参数): 用户 ID
-
-**响应**: 同获取当前用户资料
 
 ---
 
@@ -219,408 +200,81 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 9. 获取微信 OAuth 授权 URL
+### 9-15. OAuth 相关接口
 
-**端点**: `GET /user/oauth/wechat/redirect`
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "WeChat auth URL generated",
-  "data": {
-    "authorization_url": "https://open.weixin.qq.com/connect/qrconnect?...",
-    "state": "random_state_string"
-  }
-}
-```
-
----
-
-### 10. 获取 QQ OAuth 授权 URL
-
-**端点**: `GET /user/oauth/qq/redirect`
-
-**响应**: 类似微信授权 URL 响应
-
----
-
-### 11. 微信 OAuth 回调
-
-**端点**: `POST /user/oauth/wechat/callback`
-
-**请求体**:
-```json
-{
-  "code": "authorization_code",
-  "state": "state_string"
-}
-```
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "WeChat login successful",
-  "data": {
-    "user": {...},
-    "access_token": "<JWT>",
-    "refresh_token": "<JWT>",
-    "token_type": "Bearer",
-    "expires_in": 1800
-  }
-}
-```
-
----
-
-### 12. QQ OAuth 回调
-
-**端点**: `POST /user/oauth/qq/callback`
-
-**请求体**: 同微信回调
-
----
-
-### 13. 绑定 OAuth 账号
-
-**端点**: `POST /user/oauth/bind`
-
-**权限**: `@jwt_required`
-
-**请求体**:
-```json
-{
-  "provider": "wechat",  // 或 "qq"
-  "code": "authorization_code"
-}
-```
-
----
-
-### 14. 解绑 OAuth 账号
-
-**端点**: `POST /user/oauth/unbind/:provider`
-
-**权限**: `@jwt_required`
-
-**路径参数**:
-- `provider`: `wechat` 或 `qq`
-
----
-
-### 15. 获取绑定的 OAuth 账号列表
-
-**端点**: `GET /user/oauth/accounts`
-
-**权限**: `@jwt_required`
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Bound accounts fetched successfully",
-  "data": {
-    "accounts": [
-      {
-        "provider": "wechat",
-        "open_id": "xxx",
-        "union_id": "xxx",
-        "created_at": "2026-03-21T00:00:00"
-      }
-    ]
-  }
-}
-```
+| 端点 | 说明 |
+|------|------|
+| `GET /user/oauth/wechat/redirect` | 获取微信授权 URL |
+| `GET /user/oauth/qq/redirect` | 获取 QQ 授权 URL |
+| `POST /user/oauth/wechat/callback` | 微信回调 |
+| `POST /user/oauth/qq/callback` | QQ 回调 |
+| `POST /user/oauth/bind` | 绑定 OAuth 账号 |
+| `POST /user/oauth/unbind/:provider` | 解绑 OAuth 账号 |
+| `GET /user/oauth/accounts` | 获取绑定账号列表 |
 
 ---
 
 ## 资产模块 (Asset)
 
-**基础路径**: `/asset`
+**基础路径**: `/rest/v1/asset`
 
-### 1. 创建新资产
-
-**端点**: `POST /asset/createNewAsset`
-
-**请求体**:
-```json
-{
-  "type": "character",  // 或 "world"
-  "user_id": "uuid",
-  "work_id": "uuid",  // 可选
-  "asset_data": {}  // MongoDB 存储的详细数据
-}
-```
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Asset created successfully",
-  "data": {
-    "asset_id": "uuid",
-    "user_id": "uuid",
-    "work_id": "uuid",
-    "asset_type": "character",
-    "created_at": "2026-03-21T00:00:00",
-    "updated_at": "2026-03-21T00:00:00",
-    "asset_data": {}
-  },
-  "count": 1
-}
-```
-
----
-
-### 2. 更新资产
-
-**端点**: `POST /asset/updateAssetById`
-
-**请求体**:
-```json
-{
-  "asset_id": "uuid",
-  "work_id": "uuid",  // 可选
-  "type": "character",  // 可选
-  "asset_data": {}  // 可选
-}
-```
-
----
-
-### 3. 获取资产详情
-
-**端点**: `GET /asset/getAssetById`
-
-**请求参数**:
-- `asset_id`: 资产 ID
-
----
-
-### 4. 获取用户资产列表
-
-**端点**: `GET /asset/getAssetsByUserId`
-
-**请求参数**:
-- `user_id`: 用户 ID
-- `type`: 资产类型 (可选)
-- `work_id`: 作品 ID (可选)
-- `limit`: 数量限制 (可选，默认 10)
-- `offset`: 偏移量 (可选，默认 0)
-
----
-
-### 5. 删除资产
-
-**端点**: `POST /asset/deleteAssetById`
-
-**请求体**:
-```json
-{
-  "asset_id": "uuid"
-}
-```
+| 端点 | 说明 |
+|------|------|
+| `POST /createNewAsset` | 创建新资产 |
+| `POST /updateAssetById` | 更新资产 |
+| `GET /getAssetById` | 获取资产详情 |
+| `GET /getAssetsByUserId` | 获取用户资产列表 |
+| `POST /deleteAssetById` | 删除资产 |
 
 ---
 
 ## 作品模块 (Work)
 
-**基础路径**: `/work`
+**基础路径**: `/rest/v1/work`
 
-### 1. 创建新作品
-
-**端点**: `POST /work/createNovel`
-
-**请求体**:
-```json
-{
-  "author_id": "uuid",
-  "title": "作品标题",
-  "genre": "类型",
-  "tags": "标签 1,标签 2",
-  "status": "draft",  // draft, published, completed
-  "description": "作品简介"
-}
-```
-
----
-
-### 2. 更新作品
-
-**端点**: `POST /work/updateNovelById`
-
-**请求体**:
-```json
-{
-  "work_id": "uuid",
-  "title": "新标题",
-  "genre": "新类型",
-  "tags": "新标签",
-  "status": "published",
-  "chapter_count": 10,
-  "word_count": 100000,
-  "description": "新简介"
-}
-```
-
----
-
-### 3. 获取作品详情
-
-**端点**: `GET /work/getNovelById`
-
-**请求参数**:
-- `novel_id`: 作品 ID
-
----
-
-### 4. 获取作者作品列表
-
-**端点**: `GET /work/getNovelsByAuthorId`
-
-**请求参数**:
-- `author_id`: 作者 ID
-- `status`: 状态筛选 (可选)
-- `limit`: 数量限制 (可选)
-- `offset`: 偏移量 (可选)
-
----
-
-### 5. 删除作品
-
-**端点**: `POST /work/deleteNovelById`
-
-**请求体**:
-```json
-{
-  "work_id": "uuid"
-}
-```
-
----
-
-### 6. 添加资产到作品
-
-**端点**: `POST /work/addAssetToNovel`
-
-**请求体**:
-```json
-{
-  "work_id": "uuid",
-  "asset_id": "uuid"
-}
-```
-
----
-
-### 7. 获取作品关联资产
-
-**端点**: `GET /work/getAssetsByWorkId`
-
-**请求参数**:
-- `work_id`: 作品 ID
-
----
-
-### 8. 从作品移除资产
-
-**端点**: `POST /work/removeAssetFromNovel`
-
-**请求体**:
-```json
-{
-  "work_id": "uuid",
-  "asset_id": "uuid"
-}
-```
+| 端点 | 说明 |
+|------|------|
+| `POST /createNovel` | 创建新作品 |
+| `POST /updateNovelById` | 更新作品 |
+| `GET /getNovelById` | 获取作品详情 |
+| `GET /getNovelsByAuthorId` | 获取作者作品列表 |
+| `POST /deleteNovelById` | 删除作品 |
+| `POST /addAssetToNovel` | 添加资产到作品 |
+| `GET /getAssetsByWorkId` | 获取作品关联资产 |
+| `POST /removeAssetFromNovel` | 从作品移除资产 |
 
 ---
 
 ## 章节模块 (Chapter)
 
-**基础路径**: `/chapter`
+**基础路径**: `/rest/v1/chapter`
 
-### 1. 创建章节
-
-**端点**: `POST /chapter/createChapter`
-
-**请求体**:
-```json
-{
-  "work_id": "uuid",
-  "author_id": "uuid",
-  "chapter_number": 1,
-  "chapter_title": "第一章",
-  "content": "章节内容",
-  "status": "published",
-  "word_count": 3000,
-  "description": "章节简介"
-}
-```
-
----
-
-### 2. 更新章节
-
-**端点**: `POST /chapter/updateChapterById`
-
-**请求体**:
-```json
-{
-  "chapter_id": "uuid",
-  "chapter_number": 1,
-  "chapter_title": "新标题",
-  "content": "新内容",
-  "status": "published",
-  "word_count": 3500
-}
-```
-
----
-
-### 3. 获取章节列表
-
-**端点**: `GET /chapter/getChapterByNovelId`
-
-**请求参数**:
-- `work_id`: 作品 ID
-- `status`: 状态筛选 (可选)
-- `limit`: 数量限制 (可选)
-- `offset`: 偏移量 (可选)
-
----
-
-### 4. 删除章节
-
-**端点**: `POST /chapter/deleteChapterById`
-
-**请求体**:
-```json
-{
-  "chapter_id": "uuid"
-}
-```
+| 端点 | 说明 |
+|------|------|
+| `POST /createChapter` | 创建章节 |
+| `POST /updateChapterById` | 更新章节 |
+| `GET /getChapterByNovelId` | 获取章节列表 |
+| `POST /deleteChapterById` | 删除章节 |
 
 ---
 
 ## AI 服务 (AI)
 
-**基础路径**: `/ai`
+**基础路径**: `/rest/v1/ai`
 
 ### 1. 处理 AI 请求
 
-**端点**: `POST /ai/process`
+**端点**: `POST /process`
 
 **请求体**:
 ```json
 {
-  "task_type": "chat",  // chat, enhance, abstract, generate, translate, summarize, rewrite, code, analysis
+  "task_type": "chat",
   "model": "qwen3.5-plus",
   "content": {
     "user_prompt": "用户提示词",
     "system_prompt": "系统提示词 (可选)",
-    "context": []  // 对话历史 (可选)
+    "context": []
   },
   "parameters": {
     "max_tokens": 2000,
@@ -629,76 +283,33 @@ Authorization: Bearer <access_token>
 }
 ```
 
----
+### 其他接口
 
-### 2. 获取支持的模型列表
-
-**端点**: `GET /ai/models`
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Models fetched successfully",
-  "data": {
-    "models": ["qwen3.5-plus", "qwen-max", ...]
-  },
-  "count": 2
-}
-```
+| 端点 | 说明 |
+|------|------|
+| `GET /models` | 获取支持的模型列表 |
+| `GET /health` | 健康检查 |
+| `POST /test` | 测试 AI 接口 |
+| `GET /capabilities` | 获取 AI 能力列表 |
 
 ---
 
-### 3. 健康检查
+## 图片服务 (Picture)
 
-**端点**: `GET /ai/health`
-
----
-
-### 4. 测试 AI 接口
-
-**端点**: `POST /ai/test`
-
----
-
-### 5. 获取 AI 能力列表
-
-**端点**: `GET /ai/capabilities`
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Capabilities fetched successfully",
-  "data": {
-    "capabilities": {
-      "supported_tasks": ["chat", "enhance", "abstract", "generate", "translate", "summarize", "rewrite", "code", "analysis"],
-      "supported_languages": ["zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "es-ES", "de-DE", "ru-RU"],
-      "max_tokens": 16384,
-      "supports_streaming": true,
-      "provider": "阿里云通义千问",
-      "api_version": "v1"
-    }
-  }
-}
-```
-
----
-
-## 动漫工具 (Anime Tool)
-
-**基础路径**: `/anime-tool`
+**基础路径**: `/rest/v1/picture`
 
 ### 1. 上传漫画图片
 
-**端点**: `POST /anime-tool/uploadPicture`
+**端点**: `POST /uploadPicture`
 
 **Content-Type**: `multipart/form-data`
 
 **请求参数**:
-- `picture`: 图片文件 (必填)
-- `user_id`: 用户 ID (必填)
-- `work_id`: 作品 ID (可选)
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `picture` | File | 是 | 图片文件 |
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 否 | 作品 ID |
 
 **响应**:
 ```json
@@ -720,46 +331,76 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 2. 获取漫画图片列表
+### 2. 通过 asset_id 获取图片
 
-**端点**: `GET /anime-tool/fetchPicture`
+**端点**: `GET /fetchPictureByAssetId`
 
 **请求参数**:
-- `user_id`: 用户 ID (必填)
-- `work_id`: 作品 ID (可选)
-- `limit`: 数量限制 (可选，默认 100)
-- `offset`: 偏移量 (可选，默认 0)
-- `oss_list`: 是否直接从 OSS 获取 (可选，默认 false)
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `asset_id` | String | 是 | 资产 ID |
+| `user_id` | String | 是 | 用户 ID (用于权限验证) |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Picture fetched successfully",
+  "data": {
+    "asset": {
+      "asset_id": "uuid",
+      "user_id": "uuid",
+      "work_id": "uuid",
+      "asset_type": "picture",
+      "created_at": "2026-03-21T00:00:00",
+      "updated_at": "2026-03-21T00:00:00",
+      "asset_data": {
+        "type": "picture",
+        "oss_url": "https://...",
+        "oss_object_key": "...",
+        "original_filename": "image.jpg",
+        "file_size": 102400,
+        "upload_timestamp": "2026-03-21T00:00:00"
+      }
+    }
+  },
+  "count": 1
+}
+```
 
 ---
 
-### 3. 生成动画
+### 3. 通过 work_id 获取图片列表
 
-**端点**: `POST /anime-tool/generateAnime`
-
-**Content-Type**: `multipart/form-data` 或 `application/json`
+**端点**: `GET /fetchPicturesByWorkId`
 
 **请求参数**:
-- `user_id`: 用户 ID (必填)
-- `session_id`: 会话 ID (可选)
-- `mode`: 模式 (analyze|generate|chat|confirm)，默认 generate
-- `asset_id`: 已上传图片的资产 ID (可选)
-- `oss_object_key`: OSS 对象键 (可选)
-- `picture`: 新图片文件 (可选)
-- `message`: 用户消息 (chat 模式必填)
-- `parameters`: 生成参数 (可选)
-
-**模式说明**:
-- `analyze`: 分析漫画图片，检测分格
-- `generate`: 为分格生成动画
-- `chat`: 多轮对话交互
-- `confirm`: 确认保存生成的视频
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `user_id` | String | 是 | 用户 ID |
+| `limit` | Integer | 否 | 数量限制 (默认 100) |
+| `offset` | Integer | 否 | 偏移量 (默认 0) |
 
 ---
 
-### 4. 删除漫画图片
+### 4. 通过 user_id 获取图片列表
 
-**端点**: `POST /anime-tool/deletePicture`
+**端点**: `GET /fetchPicturesByUserId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 否 | 作品 ID (筛选) |
+| `limit` | Integer | 否 | 数量限制 (默认 100) |
+| `offset` | Integer | 否 | 偏移量 (默认 0) |
+
+---
+
+### 5. 删除漫画图片
+
+**端点**: `POST /deletePicture`
 
 **请求体**:
 ```json
@@ -769,11 +410,168 @@ Authorization: Bearer <access_token>
 }
 ```
 
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Picture deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+
 ---
 
-### 5. 健康检查
+### 6. 健康检查
 
-**端点**: `GET /anime-tool/health`
+**端点**: `GET /health`
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Health check completed",
+  "data": {
+    "service": "picture",
+    "status": "healthy",
+    "bucket": "narloom001",
+    "endpoint": "oss-cn-shanghai.aliyuncs.com"
+  }
+}
+```
+
+---
+
+## 动画生成 (Anime)
+
+**基础路径**: `/rest/v1/anime`
+
+### 1. 生成动画
+
+**端点**: `POST /generateAnime`
+
+**Content-Type**: `multipart/form-data` 或 `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `session_id` | String | 否 | 会话 ID (不传则自动创建) |
+| `asset_id` | String | 否 | 已上传图片的资产 ID |
+| `oss_object_key` | String | 否 | OSS 对象键 |
+| `picture` | File | 否 | 新图片文件 |
+| `parameters` | Object | 否 | 生成参数 |
+
+**parameters 参数说明**:
+```json
+{
+  "prompt": "用户自定义提示词",
+  "style": "anime",
+  "duration": 5,
+  "motion_strength": 0.5
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Anime generation completed",
+  "data": {
+    "session_id": "uuid",
+    "video_url": "https://example.com/video.mp4",
+    "preview_url": "https://example.com/preview.jpg",
+    "panel_count": 1,
+    "total_duration": 5
+  },
+  "count": 1
+}
+```
+
+**图片来源优先级**:
+1. `asset_id` - 从数据库获取
+2. `oss_object_key` - 直接生成 URL
+3. `picture` - 上传新图片到 OSS
+
+---
+
+### 2. 多轮对话
+
+**端点**: `POST /chat`
+
+**Content-Type**: `multipart/form-data` 或 `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `session_id` | String | 否 | 会话 ID (不传则自动创建) |
+| `message` | String | 是 | 用户消息 |
+| `asset_id` | String | 否 | 图片资产 ID |
+| `oss_object_key` | String | 否 | OSS 对象键 |
+| `picture` | File | 否 | 新图片文件 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Chat response generated",
+  "data": {
+    "session_id": "uuid",
+    "response": "AI 回复内容",
+    "summary": "对话总结",
+    "turn_count": 5
+  },
+  "count": 1
+}
+```
+
+---
+
+### 3. 确认保存视频
+
+**端点**: `POST /confirm`
+
+**Content-Type**: `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `video_url` | String | 是 | 视频 URL |
+| `preview_url` | String | 否 | 预览图 URL |
+| `parameters` | Object | 否 | 其他参数 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Video saved successfully",
+  "data": {
+    "asset_id": "uuid",
+    "video_url": "https://example.com/video.mp4",
+    "preview_url": "https://example.com/preview.jpg"
+  },
+  "count": 1
+}
+```
+
+---
+
+### 4. 健康检查
+
+**端点**: `GET /health`
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Health check completed",
+  "data": {
+    "service": "anime"
+  }
+}
+```
 
 ---
 
@@ -791,7 +589,7 @@ Authorization: Bearer <access_token>
 | `user_oauth_accounts` | 用户 OAuth 账号绑定表 |
 | `token_blacklist` | JWT 令牌黑名单表 |
 | `oauth_states` | OAuth state 参数存储表 (CSRF 防护) |
-| `assets` | 资产表 (character/world) |
+| `assets` | 资产表 |
 | `works` | 作品表 |
 | `chapters` | 章节表 |
 
@@ -801,16 +599,17 @@ Authorization: Bearer <access_token>
 
 #### 集合结构
 
-| 集合名 | 说明 |
-|--------|------|
-| `asset_data` | 资产详细数据 |
-| `work_details` | 作品详细信息 (关联 asset_ids, chapter_ids) |
+| 集合名 | 说明 | 索引 |
+|--------|------|------|
+| `asset_data` | 资产详细数据 | `asset_id` (唯一) |
+| `work_details` | 作品详细信息 | `work_id` (唯一), 复合索引 |
+| `conversation_history` | 对话历史 | `session_id` (唯一), `user_id`, `expires_at` |
 
 ---
 
 ## 错误响应格式
 
-所有错误响应遵循以下格式：
+所有错误响应遵循以下格式:
 
 ```json
 {
@@ -824,11 +623,12 @@ Authorization: Bearer <access_token>
 | 状态码 | 说明 |
 |--------|------|
 | 200 | 请求成功 |
+| 201 | 创建成功 |
 | 400 | 请求参数错误 |
 | 401 | 未授权 (Token 缺失或无效) |
 | 403 | 禁止访问 (Token 已撤销) |
 | 404 | 资源不存在 |
-| 409 | 资源冲突 (如邮箱已注册) |
+| 409 | 资源冲突 |
 | 500 | 服务器内部错误 |
 
 ---
@@ -840,19 +640,14 @@ Authorization: Bearer <access_token>
 JWT_SECRET_KEY=your-secret-key
 JWT_ACCESS_TOKEN_EXPIRES=30
 JWT_REFRESH_TOKEN_EXPIRES=7
-JWT_ALGORITHM=HS256
-JWT_ISSUER=narloom-api
-JWT_AUDIENCE=narloom-client
 
 # 微信 OAuth2.0
 WECHAT_OAUTH_APP_ID=wx_xxxxx
 WECHAT_OAUTH_APP_SECRET=xxxxx
-WECHAT_OAUTH_REDIRECT_URI=http://localhost:5000/user/oauth/wechat/callback
 
 # QQ OAuth2.0
 QQ_OAUTH_APP_ID=1xxxxx
 QQ_OAUTH_APP_KEY=xxxxx
-QQ_OAUTH_REDIRECT_URI=http://localhost:5000/user/oauth/qq/callback
 
 # MySQL 配置
 MYSQL_HOST=localhost
@@ -866,14 +661,30 @@ MONGO_URI=mongodb://localhost:27017/
 MONGO_DB=narloom
 MONGO_ASSET_DATA_COLLECTION=asset_data
 MONGO_WORK_DETAILS_COLLECTION=work_details
+MONGO_CONVERSATION_COLLECTION=conversation_history
 
 # 阿里云 OSS 配置
 ALIYUN_OSS_ENDPOINT=oss-cn-shanghai.aliyuncs.com
 ALIYUN_OSS_ACCESS_KEY_ID=xxxxx
 ALIYUN_OSS_ACCESS_KEY_SECRET=xxxxx
 ALIYUN_OSS_BUCKET_NAME=narloom001
+ALIYUN_OSS_CDN_DOMAIN=cdn.example.com
 
 # 阿里云 DashScope 配置
 DASHSCOPE_API_KEY=xxxxx
 DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ```
+
+---
+
+## 更新日志
+
+### v2.1 (2026-03-24)
+- 拆分 Picture 和 Anime 为两个独立模块
+- Picture 模块路由：`/rest/v1/picture`
+- Anime 模块路由：`/rest/v1/anime`
+- 新增 `/generateAnime` - 生成动画 (支持自动创建会话)
+- 新增 `/chat` - 多轮对话交互
+- 新增 `/confirm` - 确认保存视频
+- 移除 `analyze` 模式
+- 新增 `conversation_history` MongoDB 集合
