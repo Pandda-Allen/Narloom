@@ -1,4 +1,4 @@
-# api/routes/anime_routes.py
+# api/routes/anime.py
 """
 Anime Routes 模块
 提供漫画图片动画生成等功能

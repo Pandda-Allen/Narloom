@@ -1,4 +1,4 @@
-# api/routes/picture_routes.py
+# api/routes/pictures.py
 """
 Picture Routes 模块
 提供漫画图片上传、获取、删除等功能

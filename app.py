@@ -136,8 +136,8 @@ def register_blueprints(app):
     from api.routes.chapter import chapter_bp
     from api.routes.asset import asset_bp
     from api.routes.ai import ai_bp
-    from api.routes.picture_routes import picture_bp
-    from api.routes.anime_routes import anime_bp
+    from api.routes.pictures import picture_bp
+    from api.routes.anime import anime_bp
 
     app.register_blueprint(user_bp)
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
