@@ -161,8 +161,8 @@ class UserService:
             conn.commit()
             return cursor.rowcount > 0
 
-    def update_user_last_login(self, user_id: str, provider: str) -> bool:
-        """更新用户最后登录时间和方式"""
+    def update_user_last_login(self, user_id: str) -> bool:
+        """更新用户最后登录时间"""
         conn = mysql_base_service._ensure_connection()
         users_table = mysql_base_service._validate_table_name(
             mysql_base_service._get_config('MYSQL_TABLE_USERS', 'users'))
@@ -171,9 +171,9 @@ class UserService:
             with conn.cursor() as cursor:
                 cursor.execute(f"""
                     UPDATE {users_table}
-                    SET last_login_at = %s, last_login_provider = %s, updated_at = %s
+                    SET last_login_at = %s, updated_at = %s
                     WHERE user_id = %s
-                """, (datetime.now(), provider, datetime.now(), user_id))
+                """, (datetime.now(), datetime.now(), user_id))
 
                 conn.commit()
                 return cursor.rowcount > 0

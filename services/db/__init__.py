@@ -9,7 +9,6 @@ from .user_service import user_service, UserService
 from .asset_service import asset_service, AssetService
 from .work_service import work_service, WorkService
 from .chapter_service import chapter_service, ChapterService
-from .oauth_service import oauth_service, OAuthService
 
 # MongoDB Services
 from .mongo_asset_service import asset_data_service, AssetDataService
@@ -29,8 +28,6 @@ __all__ = [
     'WorkService',
     'chapter_service',
     'ChapterService',
-    'oauth_service',
-    'OAuthService',
     # MongoDB
     'asset_data_service',
     'AssetDataService',

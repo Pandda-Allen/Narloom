@@ -47,19 +47,18 @@ class JWTService(BaseService):
         return getattr(Config, key, default)
 
     # ==================== 令牌生成 ====================
-    def generate_tokens(self, user_id: str, email: str = None, provider: str = None) -> Dict[str, Any]:
+    def generate_tokens(self, user_id: str, email: str = None) -> Dict[str, Any]:
         """
         生成访问令牌和刷新令牌
 
         Args:
             user_id: 用户 ID
             email: 用户邮箱（可选）
-            provider: 登录提供商（email, wechat, qq 等）
 
         Returns:
             Dict: 包含 access_token, refresh_token, expires_in 等
         """
-        access_token = self.generate_access_token(user_id, email, provider)
+        access_token = self.generate_access_token(user_id, email)
         refresh_token = self.generate_refresh_token(user_id)
 
         return {
@@ -69,14 +68,13 @@ class JWTService(BaseService):
             'expires_in': int(self.access_token_expires.total_seconds())
         }
 
-    def generate_access_token(self, user_id: str, email: str = None, provider: str = None, additional_claims: Dict = None) -> str:
+    def generate_access_token(self, user_id: str, email: str = None, additional_claims: Dict = None) -> str:
         """
         生成访问令牌
 
         Args:
             user_id: 用户 ID
             email: 用户邮箱（可选）
-            provider: 登录提供商
             additional_claims: 额外声明
 
         Returns:
@@ -88,7 +86,6 @@ class JWTService(BaseService):
         payload = {
             'user_id': user_id,
             'email': email,
-            'provider': provider,
             'type': 'access',
             'iat': now,
             'exp': expires_at,

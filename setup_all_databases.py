@@ -29,9 +29,7 @@ def get_mysql_config():
         'table_assets': os.getenv('MYSQL_TABLE_ASSETS', 'assets'),
         'table_works': os.getenv('MYSQL_TABLE_WORKS', 'works'),
         'table_chapters': os.getenv('MYSQL_TABLE_CHAPTERS', 'chapters'),
-        'table_user_oauth_accounts': os.getenv('MYSQL_TABLE_USER_OAUTH_ACCOUNTS', 'user_oauth_accounts'),
-        'table_token_blacklist': os.getenv('MYSQL_TABLE_TOKEN_BLACKLIST', 'token_blacklist'),
-        'table_oauth_states': os.getenv('MYSQL_TABLE_OAUTH_STATES', 'oauth_states')
+        'table_token_blacklist': os.getenv('MYSQL_TABLE_TOKEN_BLACKLIST', 'token_blacklist')
     }
 
 def get_mongo_config():
@@ -101,7 +99,6 @@ def create_mysql_tables(config):
                     phone VARCHAR(20),
                     avatar_url VARCHAR(500),
                     last_login_at DATETIME,
-                    last_login_provider VARCHAR(20) DEFAULT 'email',
                     created_at DATETIME NOT NULL,
                     updated_at DATETIME NOT NULL,
                     INDEX idx_email (email)
@@ -163,27 +160,7 @@ def create_mysql_tables(config):
             """)
             print(f"[OK] 表 {config['table_chapters']} 已确保存在")
 
-            # 5. 创建 user_oauth_accounts 表（OAuth 账号绑定）
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {config['table_user_oauth_accounts']} (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id VARCHAR(100) NOT NULL,
-                    provider VARCHAR(20) NOT NULL COMMENT 'OAuth 提供商 (wechat/qq)',
-                    open_id VARCHAR(100) NOT NULL COMMENT 'OAuth open_id',
-                    union_id VARCHAR(100) COMMENT 'OAuth union_id',
-                    access_token TEXT COMMENT 'OAuth access_token (可选)',
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_user_provider (user_id, provider),
-                    UNIQUE KEY unique_provider_openid (provider, open_id),
-                    INDEX idx_user_id (user_id),
-                    CONSTRAINT fk_user_oauth FOREIGN KEY (user_id) REFERENCES {config['table_users']}(user_id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                COMMENT='用户 OAuth 账号绑定表'
-            """)
-            print(f"[OK] 表 {config['table_user_oauth_accounts']} 已确保存在")
-
-            # 6. 创建 token_blacklist 表（JWT 令牌黑名单）
+            # 5. 创建 token_blacklist 表（JWT 令牌黑名单）
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {config['table_token_blacklist']} (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -200,21 +177,6 @@ def create_mysql_tables(config):
                 COMMENT='JWT 令牌黑名单表'
             """)
             print(f"[OK] 表 {config['table_token_blacklist']} 已确保存在")
-
-            # 7. 创建 oauth_states 表（OAuth state 参数存储，CSRF 防护）
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {config['table_oauth_states']} (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    state VARCHAR(100) NOT NULL UNIQUE COMMENT 'OAuth state 参数',
-                    provider VARCHAR(20) NOT NULL COMMENT 'OAuth 提供商',
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    expires_at DATETIME NOT NULL COMMENT '过期时间',
-                    INDEX idx_state (state),
-                    INDEX idx_expires_at (expires_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                COMMENT='OAuth state 参数存储表'
-            """)
-            print(f"[OK] 表 {config['table_oauth_states']} 已确保存在")
 
         conn.commit()
         return True
@@ -325,8 +287,7 @@ def main():
     print(f"  字符集：{mysql_config['charset']}")
     print(f"  表：{mysql_config['table_users']}, {mysql_config['table_assets']}, "
           f"{mysql_config['table_works']}, {mysql_config['table_chapters']}, "
-          f"{mysql_config['table_user_oauth_accounts']}, {mysql_config['table_token_blacklist']}, "
-          f"{mysql_config['table_oauth_states']}")
+          f"{mysql_config['table_token_blacklist']}")
 
     # MongoDB 配置
     mongo_config = get_mongo_config()

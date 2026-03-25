@@ -38,12 +38,6 @@ Authorization: Bearer <access_token>
 | access_token | 30 分钟 | 访问受保护的 API |
 | refresh_token | 7 天 | 刷新 access_token |
 
-### OAuth2.0 第三方登录
-
-支持以下第三方登录平台：
-- **微信 (WeChat)**: `snsapi_login` scope
-- **QQ**: `get_user_info` scope
-
 ---
 
 ## 用户模块 (User)
@@ -77,8 +71,7 @@ Authorization: Bearer <access_token>
       "bio": "个人简介",
       "phone": null,
       "avatar_url": null,
-      "created_at": "2026-03-21T00:00:00",
-      "last_login_provider": "email"
+      "created_at": "2026-03-21T00:00:00"
     },
     "access_token": "<JWT>",
     "refresh_token": "<JWT>",
@@ -197,20 +190,6 @@ Authorization: Bearer <access_token>
 **端点**: `DELETE /user/:user_id`
 
 **说明**: 级联删除用户相关的所有数据
-
----
-
-### 9-15. OAuth 相关接口
-
-| 端点 | 说明 |
-|------|------|
-| `GET /user/oauth/wechat/redirect` | 获取微信授权 URL |
-| `GET /user/oauth/qq/redirect` | 获取 QQ 授权 URL |
-| `POST /user/oauth/wechat/callback` | 微信回调 |
-| `POST /user/oauth/qq/callback` | QQ 回调 |
-| `POST /user/oauth/bind` | 绑定 OAuth 账号 |
-| `POST /user/oauth/unbind/:provider` | 解绑 OAuth 账号 |
-| `GET /user/oauth/accounts` | 获取绑定账号列表 |
 
 ---
 
@@ -586,9 +565,7 @@ Authorization: Bearer <access_token>
 | 表名 | 说明 |
 |------|------|
 | `users` | 用户基础信息表 |
-| `user_oauth_accounts` | 用户 OAuth 账号绑定表 |
 | `token_blacklist` | JWT 令牌黑名单表 |
-| `oauth_states` | OAuth state 参数存储表 (CSRF 防护) |
 | `assets` | 资产表 |
 | `works` | 作品表 |
 | `chapters` | 章节表 |
@@ -640,14 +617,6 @@ Authorization: Bearer <access_token>
 JWT_SECRET_KEY=your-secret-key
 JWT_ACCESS_TOKEN_EXPIRES=30
 JWT_REFRESH_TOKEN_EXPIRES=7
-
-# 微信 OAuth2.0
-WECHAT_OAUTH_APP_ID=wx_xxxxx
-WECHAT_OAUTH_APP_SECRET=xxxxx
-
-# QQ OAuth2.0
-QQ_OAUTH_APP_ID=1xxxxx
-QQ_OAUTH_APP_KEY=xxxxx
 
 # MySQL 配置
 MYSQL_HOST=localhost

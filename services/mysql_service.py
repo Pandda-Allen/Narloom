@@ -9,7 +9,6 @@ from .db import (
     asset_service,
     work_service,
     chapter_service,
-    oauth_service,
     TABLE_WHITELIST
 )
 from .db.base_service import MySQLBaseService
@@ -112,28 +111,6 @@ class MySQLService:
 
     def delete_chapter(self, *args, **kwargs):
         return chapter_service.delete_chapter(*args, **kwargs)
-
-    # --- OAuth 方法 ---
-    def fetch_user_by_oauth(self, *args, **kwargs):
-        return oauth_service.fetch_user_by_oauth(*args, **kwargs)
-
-    def fetch_user_by_oauth_union_id(self, *args, **kwargs):
-        return oauth_service.fetch_user_by_oauth_union_id(*args, **kwargs)
-
-    def create_oauth_user(self, *args, **kwargs):
-        return oauth_service.create_oauth_user(*args, **kwargs)
-
-    def bind_oauth_account(self, *args, **kwargs):
-        return oauth_service.bind_oauth_account(*args, **kwargs)
-
-    def unbind_oauth_account(self, *args, **kwargs):
-        return oauth_service.unbind_oauth_account(*args, **kwargs)
-
-    def fetch_user_oauth_accounts(self, *args, **kwargs):
-        return oauth_service.fetch_user_oauth_accounts(*args, **kwargs)
-
-    def update_oauth_tokens(self, *args, **kwargs):
-        return oauth_service.update_oauth_tokens(*args, **kwargs)
 
 
 # 保持单例模式
