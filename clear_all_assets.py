@@ -18,10 +18,8 @@ def create_app():
 
 def clear_all_assets():
     """清空所有 asset 数据和 OSS 图片"""
-    from services.mysql_service import mysql_service
-    from services.mongo_service import MongoService
-    from services.picture_service import picture_service
-    from services.db.base_service import mysql_base_service
+    from services.db import mysql_service, MongoService, mysql_base_service
+    from services.storage import oss_service
 
     print("开始清空所有资产数据...")
 
@@ -50,7 +48,7 @@ def clear_all_assets():
             if asset_data and asset_data.get('oss_object_key'):
                 oss_object_key = asset_data['oss_object_key']
                 try:
-                    delete_result = picture_service.delete_picture(oss_object_key)
+                    delete_result = oss_service.delete_picture(oss_object_key)
                     if delete_result.get('success'):
                         oss_deleted_count += 1
                         print(f"  已删除 OSS 图片：{oss_object_key}")

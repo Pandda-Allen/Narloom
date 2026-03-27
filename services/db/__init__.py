@@ -5,6 +5,8 @@
 
 # MySQL Services
 from .base_service import mysql_base_service, MySQLBaseService, TABLE_WHITELIST
+from .mysql_service import mysql_service, MySQLService
+from .mongo_service import mongo_service, MongoService
 from .user_service import user_service, UserService
 from .asset_service import asset_service, AssetService
 from .work_service import work_service, WorkService
@@ -20,6 +22,8 @@ __all__ = [
     'mysql_base_service',
     'MySQLBaseService',
     'TABLE_WHITELIST',
+    'mysql_service',
+    'MySQLService',
     'user_service',
     'UserService',
     'asset_service',
@@ -29,6 +33,8 @@ __all__ = [
     'chapter_service',
     'ChapterService',
     # MongoDB
+    'mongo_service',
+    'MongoService',
     'asset_data_service',
     'AssetDataService',
     'work_details_service',

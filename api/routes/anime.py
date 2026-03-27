@@ -13,9 +13,8 @@ from utils.constants import (
 from services.anime_service import anime_service
 from services.video_generation_service import video_generation_service
 from services.conversation_history import conversation_history
-from services.mysql_service import MySQLService
-from services.mongo_service import MongoService
-from services.picture_service import picture_service
+from services.db import MySQLService, MongoService
+from services.storage import oss_service
 import logging
 import uuid
 
@@ -50,7 +49,7 @@ def _get_picture_source(user_id: str, asset_id: str = None, oss_object_key: str 
 
     # 2. 如果提供了 oss_object_key，直接使用
     if oss_object_key:
-        url_result = picture_service.get_picture_url(oss_object_key)
+        url_result = oss_service.get_picture_url(oss_object_key)
         if url_result.get('success'):
             return url_result['url'], oss_object_key
 
@@ -72,9 +71,9 @@ def _get_picture_from_request(user_id: str):
         if file and file.filename:
             file_content = file.read()
             file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else Defaults.IMAGE_EXTENSION
-            object_key = picture_service.generate_object_key(user_id, file_extension)
+            object_key = oss_service.generate_object_key(user_id, file_extension)
 
-            upload_result = picture_service.upload_picture(
+            upload_result = oss_service.upload_picture(
                 file_content=file_content,
                 object_key=object_key,
                 content_type=file.content_type or FileTypes.IMAGE_JPEG

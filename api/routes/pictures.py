@@ -11,9 +11,8 @@ from utils.constants import (
     AssetType, AssetDataType, RequestParams, ResponseMessage,
     Defaults, FileTypes, Pagination
 )
-from services.picture_service import picture_service
-from services.mysql_service import MySQLService
-from services.mongo_service import MongoService
+from services.storage import oss_service
+from services.db import MySQLService, MongoService
 import logging
 from datetime import datetime
 
@@ -57,10 +56,10 @@ def upload_picture():
     file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else Defaults.IMAGE_EXTENSION
 
     # 生成 OSS 对象键
-    object_key = picture_service.generate_object_key(user_id, file_extension)
+    object_key = oss_service.generate_object_key(user_id, file_extension)
 
     # 上传到 OSS
-    upload_result = picture_service.upload_picture(
+    upload_result = oss_service.upload_picture(
         file_content=file_content,
         object_key=object_key,
         content_type=file.content_type or FileTypes.IMAGE_JPEG
@@ -92,7 +91,7 @@ def upload_picture():
         logger.error(f"Error inserting asset data to MongoDB: {str(e)}")
         # 回滚：删除 MySQL 和 OSS 中的数据
         MySQLService().delete_asset(asset_id)
-        picture_service.delete_picture(object_key)
+        oss_service.delete_picture(object_key)
         return error_response('Failed to create asset record', 500)
 
     result = {
@@ -338,7 +337,7 @@ def delete_picture():
     # 删除 OSS 中的图片
     if oss_object_key:
         try:
-            delete_result = picture_service.delete_picture(oss_object_key)
+            delete_result = oss_service.delete_picture(oss_object_key)
             if not delete_result.get('success'):
                 logger.warning(f"Failed to delete picture from OSS: {delete_result.get('error')}")
                 # 继续删除数据库记录，即使 OSS 删除失败
@@ -368,7 +367,7 @@ def delete_picture():
 @handle_errors
 def health_check():
     """健康检查"""
-    health_status = picture_service.health_check()
+    health_status = oss_service.health_check()
 
     return api_response(
         success=True,

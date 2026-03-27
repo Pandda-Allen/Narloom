@@ -5,9 +5,8 @@
 from flask import Blueprint, request, g
 from utils.response_helper import api_response, error_response
 from utils.decorators import handle_errors, jwt_required
-from services.mysql_service import mysql_service
-from services.mongo_service import MongoService
-from services.picture_service import picture_service
+from services.db import mysql_service, MongoService
+from services.storage import oss_service
 from services.jwt_service import jwt_service
 from services.token_blacklist_service import token_blacklist_service
 import logging
@@ -328,7 +327,7 @@ def delete_user(user_id: str):
             oss_object_key = asset_data.get('oss_object_key')
             if oss_object_key:
                 try:
-                    picture_service.delete_picture(oss_object_key)
+                    oss_service.delete_picture(oss_object_key)
                     logger.info(f"Deleted OSS picture for asset: {asset_id}")
                 except Exception as e:
                     logger.warning(f"Failed to delete OSS picture {asset_id}: {e}")

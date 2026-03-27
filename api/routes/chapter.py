@@ -12,8 +12,7 @@ from utils.resource_helper import (
     parse_pagination_args,
     delete_chapter_cascade
 )
-from services.mysql_service import MySQLService
-from services.mongo_service import MongoService
+from services.db import MySQLService, MongoService
 import logging
 
 chapter_bp = Blueprint('chapter', __name__)

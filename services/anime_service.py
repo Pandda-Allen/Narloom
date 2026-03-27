@@ -103,26 +103,46 @@ class AnimeService:
                 }
             )
 
-        # 添加用户消息
+        # 获取更新后的历史（包含自动总结）
+        updated_messages = conversation_history.get_messages(session_id, include_summaries=True)
+
+        # 构建发送给 AI 的完整 prompt
+        system_prompt = """你是一位专业的漫画动画生成助手。你可以帮助用户：
+1. 分析漫画图片内容和分格
+2. 为静态漫画分格生成动态动画
+3. 调整动画的风格、转场效果等参数
+4. 提供创作建议和技术支持
+
+请用友好、专业的语气回答用户的问题。如果涉及技术参数，请提供清晰的说明。"""
+
+        # 存储发送给 AI 的完整请求（user 角色）- 记录与大模型交互的输入
+        ai_request_payload = {
+            "system_prompt": system_prompt,
+            "user_prompt": user_message,
+            "context": updated_messages[-10:] if len(updated_messages) > 10 else updated_messages,
+            "image_url": picture_url
+        }
         conversation_history.add_message(
             session_id=session_id,
             role='user',
             content=user_message,
-            metadata={'image_url': picture_url}
+            metadata={'ai_request_payload': ai_request_payload, 'image_url': picture_url}
         )
-
-        # 获取更新后的历史（包含自动总结）
-        updated_messages = conversation_history.get_messages(session_id, include_summaries=True)
 
         # 使用 AI 生成回复
         ai_response = self._generate_chat_response(user_message, updated_messages, picture_url)
 
-        # 添加 AI 回复到历史
+        # 添加 AI 回复到历史，同时存储完整的 AI 响应 payload - 记录与大模型交互的输出
+        ai_response_payload = {
+            "response": ai_response,
+            "model": "qwen3.5-plus",
+            "request_prompt": user_message
+        }
         conversation_history.add_message(
             session_id=session_id,
             role='assistant',
             content=ai_response,
-            metadata={}
+            metadata={'ai_response_payload': ai_response_payload}
         )
 
         # 重新获取历史以获取总结
@@ -146,10 +166,10 @@ class AnimeService:
             conversation_history: 对话历史服务
 
         Returns:
-            Dict: 包含成功状态和结果数据
+            Dict: 包含成功状态和结果数据的字典
         """
-        from services.mysql_service import MySQLService
-        from services.mongo_service import MongoService
+        from services.db import MySQLService, MongoService
+        from services.storage import oss_service
 
         video_url = parameters.get('video_url')
         preview_url = parameters.get('preview_url')
@@ -160,16 +180,31 @@ class AnimeService:
                 'error': 'video_url is required for confirm mode'
             }
 
-        # 创建资产记录保存视频
+        # 1. 创建资产记录保存视频
         mysql_row = MySQLService().insert_asset(user_id, 'comic_video', None)
         asset_id = mysql_row['asset_id']
 
-        # 保存视频信息到 MongoDB
+        # 2. 生成 OSS 对象键
+        oss_object_key = oss_service.generate_video_object_key(user_id, asset_id)
+
+        # 3. 将视频从临时 URL 保存到 OSS（永久存储）
+        oss_result = oss_service.save_video_from_url(video_url, oss_object_key)
+
+        if not oss_result.get('success'):
+            # OSS 保存失败，删除刚创建的资产记录
+            MySQLService().delete_asset(asset_id)
+            return {
+                'success': False,
+                'error': oss_result.get('error')
+            }
+
+        # 3. 保存视频信息到 MongoDB（使用 OSS 永久 URL）
         video_asset_data = {
             'type': 'comic_video',
-            'video_url': video_url,
+            'video_url': oss_result.get('oss_url'),  # OSS 永久 URL
             'preview_url': preview_url,
             'source_asset_id': None,
+            'oss_object_key': oss_result.get('oss_object_key'),
             'parameters': parameters,
             'created_at': datetime.now().isoformat()
         }
@@ -178,21 +213,32 @@ class AnimeService:
             MongoService().insert_asset_data(asset_id, video_asset_data)
         except Exception as e:
             logger.error(f"Error saving video asset data: {e}")
+            # 回滚：删除 OSS 中的视频和资产记录
+            oss_service.delete_video(oss_result.get('oss_object_key'))
             MySQLService().delete_asset(asset_id)
             return {
                 'success': False,
                 'error': 'Failed to save video'
             }
 
-        # 更新会话历史（记录保存操作）
+        # 4. 更新会话历史（记录保存操作）
         if conversation_history:
-            pass  # 预留扩展位置
+            conversation_history.add_message(
+                session_id=parameters.get('session_id', 'default'),
+                role='assistant',
+                content='视频已保存到 OSS',
+                metadata={
+                    'asset_id': asset_id,
+                    'oss_object_key': oss_result.get('oss_object_key')
+                }
+            )
 
         return {
             'success': True,
             'asset_id': asset_id,
-            'video_url': video_url,
-            'preview_url': preview_url
+            'video_url': oss_result.get('oss_url'),
+            'preview_url': preview_url,
+            'oss_object_key': oss_result.get('oss_object_key')
         }
 
     def _generate_chat_response(self, user_message: str, messages: List[Dict], image_url: str) -> str:

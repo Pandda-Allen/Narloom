@@ -8,8 +8,7 @@ import uuid
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app import create_app
-from services.mysql_service import mysql_service
-from services.mongo_service import mongo_service
+from services.db import mysql_service, mongo_service
 
 def setup_module():
     """模块级别的初始化：创建 Flask 应用并初始化服务"""

@@ -3,8 +3,8 @@ MongoDB 服务兼容性封装模块
 为保持向后兼容，将所有服务方法聚合到 MongoService 类中
 新代码建议直接使用 services.db 中的具体 service
 """
-from .db.mongo_asset_service import asset_data_service, AssetDataService
-from .db.mongo_work_service import work_details_service, WorkDetailsService
+from .mongo_asset_service import asset_data_service, AssetDataService
+from .mongo_work_service import work_details_service, WorkDetailsService
 
 
 class MongoService:

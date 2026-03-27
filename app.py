@@ -24,14 +24,20 @@ def create_app(config_name='default'):
     # 初始化对话历史服务
     init_conversation_history(app)
 
-    # 初始化 Picture 服务（OSS 图片存储）
-    init_picture_service(app)
+    # 初始化 OSS 服务（统一对象存储接口，包含 Picture 和 Video 服务）
+    init_oss_service(app)
 
     # 初始化 Anime 服务（动画生成）
     init_anime_service(app)
 
     # 初始化视频生成服务
     init_video_generation_service(app)
+
+    # 初始化 OSS 服务（统一对象存储接口）
+    init_oss_service(app)
+
+    # 初始化 Video 服务（视频存储）
+    init_video_service(app)
 
     # 注册 Flask Blueprints
     register_blueprints(app)
@@ -70,7 +76,7 @@ def _setup_logging(app):
 
 def init_mysql(app):
     """初始化 MySQL 客户端"""
-    from services.mysql_service import mysql_service
+    from services.db import mysql_service
 
     mysql_service.init_app(app)
 
@@ -80,7 +86,7 @@ def init_mysql(app):
 
 def init_mongo(app):
     """初始化 MongoDB 客户端"""
-    from services.mongo_service import mongo_service
+    from services.db import mongo_service
 
     mongo_service.init_app(app)
 
@@ -105,16 +111,6 @@ def init_conversation_history(app):
     conversation_history.init_app(app)
     app.logger.info("Conversation history service initialized.")
 
-def init_picture_service(app):
-    """初始化 Picture Service（OSS 图片存储）"""
-    from services.picture_service import picture_service
-
-    picture_service.init_app(app)
-
-    # 触发初始化
-    if not picture_service._initialized:
-        app.logger.error("Failed to initialize Picture service.")
-
 def init_anime_service(app):
     """初始化 Anime Service（动画生成）"""
     from services.anime_service import anime_service
@@ -129,6 +125,16 @@ def init_video_generation_service(app):
     # 触发初始化
     if not video_generation_service._initialized:
         app.logger.error("Failed to initialize video generation service.")
+
+def init_oss_service(app):
+    """初始化 OSS Service（统一对象存储接口，包含 Picture 和 Video 服务）"""
+    from services.storage import oss_service
+
+    oss_service.init_app(app)
+
+    # 触发初始化
+    if not oss_service._initialized:
+        app.logger.error("Failed to initialize OSS service.")
 
 def register_blueprints(app):
     from api.routes.user import user_bp

@@ -5,8 +5,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from services.mysql_service import MySQLService
-from services.mongo_service import MongoService
+from services.db import MySQLService, MongoService
 
 def test_singleton_pattern():
     """测试单例模式"""

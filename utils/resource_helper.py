@@ -2,8 +2,7 @@
 资源辅助函数模块
 提供常用的资源操作辅助函数，减少路由代码重复
 """
-from services.mysql_service import MySQLService
-from services.mongo_service import MongoService
+from services.db import MySQLService, MongoService
 
 
 # ========== 资源获取辅助函数 ==========

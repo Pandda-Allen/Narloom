@@ -3,7 +3,7 @@ MySQL 服务兼容性封装模块
 为保持向后兼容，将所有服务方法聚合到 MySQLService 类中
 新代码建议直接使用 services.db 中的具体 service
 """
-from .db import (
+from . import (
     mysql_base_service,
     user_service,
     asset_service,
@@ -11,7 +11,7 @@ from .db import (
     chapter_service,
     TABLE_WHITELIST
 )
-from .db.base_service import MySQLBaseService
+from .base_service import MySQLBaseService
 
 
 class MySQLService:
