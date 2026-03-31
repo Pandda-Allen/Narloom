@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.1
-**更新日期**: 2026-03-24
+**版本**: 2.2
+**更新日期**: 2026-03-31
 **基础路径**: `/`
 
 ---
@@ -103,8 +103,6 @@ Authorization: Bearer <access_token>
 
 **端点**: `POST /user/refresh`
 
-**权限**: 需要 refresh_token
-
 **请求体**:
 ```json
 {
@@ -163,9 +161,6 @@ Authorization: Bearer <access_token>
 
 **端点**: `GET /user/:user_id`
 
-**请求参数**:
-- `user_id` (路径参数): 用户 ID
-
 ---
 
 ### 7. 更新用户资料
@@ -189,7 +184,7 @@ Authorization: Bearer <access_token>
 
 **端点**: `DELETE /user/:user_id`
 
-**说明**: 级联删除用户相关的所有数据
+**说明**: 级联删除用户相关的所有数据（assets、works 等）
 
 ---
 
@@ -197,13 +192,189 @@ Authorization: Bearer <access_token>
 
 **基础路径**: `/rest/v1/asset`
 
-| 端点 | 说明 |
-|------|------|
-| `POST /createNewAsset` | 创建新资产 |
-| `POST /updateAssetById` | 更新资产 |
-| `GET /getAssetById` | 获取资产详情 |
-| `GET /getAssetsByUserId` | 获取用户资产列表 |
-| `POST /deleteAssetById` | 删除资产 |
+资产是系统中的基础资源单元，可用于表示角色 (character)、世界观 (world)、图片 (picture)、视频 (video) 等。
+
+### 1. 创建新资产
+
+**端点**: `POST /createNewAsset`
+
+**请求体**:
+```json
+{
+  "type": "character",
+  "user_id": "uuid",
+  "work_id": "uuid",
+  "asset_data": {
+    "name": "角色名称",
+    "description": "角色描述",
+    "image_url": "https://..."
+  }
+}
+```
+
+**请求参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `type` | String | 是 | 资产类型 (character/world/picture/video 等) |
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 否 | 关联的作品 ID |
+| `asset_data` | Object | 否 | 资产详细数据 (存储到 MongoDB) |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset created successfully",
+  "data": {
+    "asset_id": "uuid",
+    "user_id": "uuid",
+    "work_id": "uuid",
+    "asset_type": "character",
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00",
+    "asset_data": {
+      "name": "角色名称",
+      "description": "角色描述"
+    }
+  },
+  "count": 1
+}
+```
+
+---
+
+### 2. 更新资产
+
+**端点**: `POST /updateAssetById`
+
+**请求体**:
+```json
+{
+  "asset_id": "uuid",
+  "work_id": "uuid",
+  "type": "character",
+  "asset_data": {
+    "name": "新角色名称",
+    "description": "新描述"
+  }
+}
+```
+
+**请求参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `asset_id` | String | 是 | 资产 ID |
+| `work_id` | String | 否 | 新的作品 ID |
+| `type` | String | 否 | 资产类型 |
+| `asset_data` | Object | 否 | 更新的详细数据 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset updated successfully",
+  "data": {
+    "asset_id": "uuid",
+    "user_id": "uuid",
+    "work_id": "uuid",
+    "asset_type": "character",
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00",
+    "asset_data": {...}
+  },
+  "count": 1
+}
+```
+
+---
+
+### 3. 获取资产详情
+
+**端点**: `GET /getAssetById`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `asset_id` | String | 是 | 资产 ID |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset fetched successfully",
+  "data": {
+    "asset_id": "uuid",
+    "user_id": "uuid",
+    "work_id": "uuid",
+    "asset_type": "character",
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00",
+    "asset_data": {...}
+  },
+  "count": 1
+}
+```
+
+---
+
+### 4. 获取用户资产列表
+
+**端点**: `GET /getAssetsByUserId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `type` | String | 否 | 资产类型筛选 |
+| `work_id` | String | 否 | 作品 ID 筛选 |
+| `limit` | Integer | 否 | 数量限制 (默认 100) |
+| `offset` | Integer | 否 | 偏移量 (默认 0) |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Assets fetched successfully",
+  "data": [
+    {
+      "asset_id": "uuid",
+      "user_id": "uuid",
+      "work_id": "uuid",
+      "asset_type": "character",
+      "created_at": "2026-03-31T00:00:00",
+      "updated_at": "2026-03-31T00:00:00",
+      "asset_data": {...}
+    }
+  ],
+  "count": 10
+}
+```
+
+---
+
+### 5. 删除资产
+
+**端点**: `POST /deleteAssetById`
+
+**请求体**:
+```json
+{
+  "asset_id": "uuid",
+  "user_id": "uuid"
+}
+```
+
+**说明**: 级联删除 MySQL 中的资产记录和 MongoDB 中的 asset_data
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
 
 ---
 
@@ -211,16 +382,241 @@ Authorization: Bearer <access_token>
 
 **基础路径**: `/rest/v1/work`
 
-| 端点 | 说明 |
-|------|------|
-| `POST /createNovel` | 创建新作品 |
-| `POST /updateNovelById` | 更新作品 |
-| `GET /getNovelById` | 获取作品详情 |
-| `GET /getNovelsByAuthorId` | 获取作者作品列表 |
-| `POST /deleteNovelById` | 删除作品 |
-| `POST /addAssetToNovel` | 添加资产到作品 |
-| `GET /getAssetsByWorkId` | 获取作品关联资产 |
-| `POST /removeAssetFromNovel` | 从作品移除资产 |
+作品是内容的集合，可以包含多个资产 (assets) 和章节 (chapters)。
+
+### 1. 创建新作品
+
+**端点**: `POST /createNovel`
+
+**请求体**:
+```json
+{
+  "author_id": "uuid",
+  "title": "作品标题",
+  "genre": "类型",
+  "tags": ["标签 1", "标签 2"],
+  "status": "连载中",
+  "description": "作品描述"
+}
+```
+
+**请求参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `author_id` | String | 是 | 作者 ID |
+| `title` | String | 是 | 作品标题 |
+| `genre` | String | 否 | 类型/体裁 |
+| `tags` | Array | 否 | 标签列表 |
+| `status` | String | 否 | 状态 (连载中/已完结) |
+| `description` | String | 否 | 作品描述 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Novel created successfully",
+  "data": {
+    "work_id": "uuid",
+    "author_id": "uuid",
+    "title": "作品标题",
+    "genre": "类型",
+    "tags": ["标签 1", "标签 2"],
+    "status": "连载中",
+    "description": "作品描述",
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00",
+    "work_details": {
+      "asset_ids": [],
+      "chapter_ids": []
+    }
+  },
+  "count": 1
+}
+```
+
+---
+
+### 2. 更新作品
+
+**端点**: `POST /updateNovelById`
+
+**请求体**:
+```json
+{
+  "work_id": "uuid",
+  "title": "新标题",
+  "genre": "新类型",
+  "tags": ["新标签"],
+  "status": "已完结",
+  "description": "新描述"
+}
+```
+
+**可更新字段**: `title`, `genre`, `tags`, `status`, `chapter_count`, `word_count`, `description`
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Work updated successfully",
+  "data": {...},
+  "count": 1
+}
+```
+
+---
+
+### 3. 获取作品详情
+
+**端点**: `GET /getNovelById`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `novel_id` | String | 是 | 作品 ID |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Novel fetched successfully",
+  "data": {
+    "work_id": "uuid",
+    "author_id": "uuid",
+    "title": "作品标题",
+    "genre": "类型",
+    "tags": ["标签 1", "标签 2"],
+    "status": "连载中",
+    "description": "作品描述",
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00",
+    "work_details": {
+      "asset_ids": ["asset-uuid-1", "asset-uuid-2"],
+      "chapter_ids": ["chapter-uuid-1", "chapter-uuid-2"]
+    }
+  },
+  "count": 1
+}
+```
+
+---
+
+### 4. 获取作者作品列表
+
+**端点**: `GET /getNovelsByAuthorId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `author_id` | String | 是 | 作者 ID |
+| `limit` | Integer | 否 | 数量限制 (默认 100) |
+| `offset` | Integer | 否 | 偏移量 (默认 0) |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Novels fetched successfully",
+  "data": [...],
+  "count": 10
+}
+```
+
+---
+
+### 5. 删除作品
+
+**端点**: `POST /deleteNovelById`
+
+**请求体**:
+```json
+{
+  "novel_id": "uuid"
+}
+```
+
+**说明**: 级联删除作品、关联的章节和资产
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Novel deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
+
+---
+
+### 6. 添加资产到作品
+
+**端点**: `POST /addAssetToNovel`
+
+**请求体**:
+```json
+{
+  "novel_id": "uuid",
+  "asset_id": "uuid"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset added to novel successfully",
+  "data": {...},
+  "count": 1
+}
+```
+
+---
+
+### 7. 获取作品关联资产
+
+**端点**: `GET /getAssetsByWorkId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `limit` | Integer | 否 | 数量限制 |
+| `offset` | Integer | 否 | 偏移量 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Work assets fetched successfully",
+  "data": [...],
+  "count": 5
+}
+```
+
+---
+
+### 8. 从作品移除资产
+
+**端点**: `POST /removeAssetFromNovel`
+
+**请求体**:
+```json
+{
+  "novel_id": "uuid",
+  "asset_id": "uuid"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Asset removed from novel successfully",
+  "data": null,
+  "count": 1
+}
+```
 
 ---
 
@@ -228,12 +624,149 @@ Authorization: Bearer <access_token>
 
 **基础路径**: `/rest/v1/chapter`
 
-| 端点 | 说明 |
-|------|------|
-| `POST /createChapter` | 创建章节 |
-| `POST /updateChapterById` | 更新章节 |
-| `GET /getChapterByNovelId` | 获取章节列表 |
-| `POST /deleteChapterById` | 删除章节 |
+章节是作品的基本内容单元，属于特定作品。
+
+### 1. 创建章节
+
+**端点**: `POST /createChapter`
+
+**请求体**:
+```json
+{
+  "work_id": "uuid",
+  "author_id": "uuid",
+  "chapter_number": 1,
+  "chapter_title": "第一章：开始",
+  "content": "章节内容...",
+  "status": "published",
+  "description": "章节简介"
+}
+```
+
+**请求参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `author_id` | String | 是 | 作者 ID |
+| `chapter_number` | Integer | 是 | 章节序号 |
+| `chapter_title` | String | 否 | 章节标题 |
+| `content` | String | 否 | 章节内容 |
+| `status` | String | 否 | 状态 (draft/published) |
+| `description` | String | 否 | 章节简介 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Chapter created successfully",
+  "data": {
+    "chapter_id": "uuid",
+    "work_id": "uuid",
+    "author_id": "uuid",
+    "chapter_number": 1,
+    "chapter_title": "第一章：开始",
+    "content": "章节内容...",
+    "status": "published",
+    "word_count": 1000,
+    "created_at": "2026-03-31T00:00:00",
+    "updated_at": "2026-03-31T00:00:00"
+  },
+  "count": 1
+}
+```
+
+---
+
+### 2. 更新章节
+
+**端点**: `POST /updateChapterById`
+
+**请求体**:
+```json
+{
+  "chapter_id": "uuid",
+  "chapter_number": 2,
+  "chapter_title": "新标题",
+  "content": "新内容...",
+  "status": "published",
+  "word_count": 1500,
+  "description": "新简介"
+}
+```
+
+**可更新字段**: `chapter_number`, `chapter_title`, `content`, `status`, `word_count`, `description`
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Chapter updated successfully",
+  "data": {...},
+  "count": 1
+}
+```
+
+---
+
+### 3. 获取章节列表
+
+**端点**: `GET /getChapterByNovelId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `status` | String | 否 | 状态筛选 |
+| `limit` | Integer | 否 | 数量限制 |
+| `offset` | Integer | 否 | 偏移量 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Chapters fetched successfully",
+  "data": [
+    {
+      "chapter_id": "uuid",
+      "work_id": "uuid",
+      "author_id": "uuid",
+      "chapter_number": 1,
+      "chapter_title": "第一章：开始",
+      "content": "...",
+      "status": "published",
+      "word_count": 1000,
+      "created_at": "2026-03-31T00:00:00",
+      "updated_at": "2026-03-31T00:00:00"
+    }
+  ],
+  "count": 10
+}
+```
+
+---
+
+### 4. 删除章节
+
+**端点**: `POST /deleteChapterById`
+
+**请求体**:
+```json
+{
+  "chapter_id": "uuid"
+}
+```
+
+**说明**: 级联删除章节并从作品的章节列表中移除
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Chapter deleted successfully",
+  "data": null,
+  "count": 1
+}
+```
 
 ---
 
@@ -320,33 +853,6 @@ Authorization: Bearer <access_token>
 | `asset_id` | String | 是 | 资产 ID |
 | `user_id` | String | 是 | 用户 ID (用于权限验证) |
 
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Picture fetched successfully",
-  "data": {
-    "asset": {
-      "asset_id": "uuid",
-      "user_id": "uuid",
-      "work_id": "uuid",
-      "asset_type": "picture",
-      "created_at": "2026-03-21T00:00:00",
-      "updated_at": "2026-03-21T00:00:00",
-      "asset_data": {
-        "type": "picture",
-        "oss_url": "https://...",
-        "oss_object_key": "...",
-        "original_filename": "image.jpg",
-        "file_size": 102400,
-        "upload_timestamp": "2026-03-21T00:00:00"
-      }
-    }
-  },
-  "count": 1
-}
-```
-
 ---
 
 ### 3. 通过 work_id 获取图片列表
@@ -389,35 +895,11 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Picture deleted successfully",
-  "data": null,
-  "count": 1
-}
-```
-
 ---
 
 ### 6. 健康检查
 
 **端点**: `GET /health`
-
-**响应**:
-```json
-{
-  "success": true,
-  "message": "Health check completed",
-  "data": {
-    "service": "picture",
-    "status": "healthy",
-    "bucket": "narloom001",
-    "endpoint": "oss-cn-shanghai.aliyuncs.com"
-  }
-}
-```
 
 ---
 
@@ -425,7 +907,7 @@ Authorization: Bearer <access_token>
 
 **基础路径**: `/rest/v1/anime`
 
-### 1. 生成动画
+### 1. 生成动画（单张图片）
 
 **端点**: `POST /generateAnime`
 
@@ -474,7 +956,66 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 2. 多轮对话
+### 2. 生成动画（多张图片）
+
+**端点**: `POST /generateMultiImageAnime`
+
+**Content-Type**: `multipart/form-data` 或 `application/json`
+
+**说明**: 为多张图片依次生成动画，并合并成一个完整视频
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `session_id` | String | 否 | 会话 ID |
+| `pictures` | File[] | 否 | 多张图片文件 |
+| `asset_ids` | String | 否 | 资产 ID 列表 (逗号分隔) |
+| `oss_object_keys` | String | 否 | OSS 对象键列表 (逗号分隔) |
+| `parameters` | Object | 否 | 生成参数 |
+
+**parameters 参数说明**:
+```json
+{
+  "prompt": "用户自定义提示词",
+  "style": "anime",
+  "duration": 5,
+  "motion_strength": 0.5,
+  "transition": "fade",
+  "transition_duration": 0.5
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Multi-image anime generation completed",
+  "data": {
+    "session_id": "uuid",
+    "video_url": "https://example.com/merged_video.mp4",
+    "preview_url": "https://example.com/preview.jpg",
+    "panel_count": 5,
+    "total_duration": 25,
+    "individual_videos": [
+      {
+        "video_url": "https://example.com/video1.mp4",
+        "preview_url": "https://example.com/preview1.jpg",
+        "duration": 5
+      }
+    ]
+  },
+  "count": 5
+}
+```
+
+**图片来源**:
+- 可以混合使用 `pictures` (上传文件)、`asset_ids` (数据库资产)、`oss_object_keys` (OSS 对象键)
+- 至少提供一种来源的一张图片
+
+---
+
+### 3. 多轮对话
 
 **端点**: `POST /chat`
 
@@ -507,7 +1048,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 3. 确认保存视频
+### 4. 确认保存视频
 
 **端点**: `POST /confirm`
 
@@ -517,7 +1058,7 @@ Authorization: Bearer <access_token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
-| `video_url` | String | 是 | 视频 URL |
+| `video_url` | String | 是 | 视频 URL (临时 URL，需保存到 OSS) |
 | `preview_url` | String | 否 | 预览图 URL |
 | `parameters` | Object | 否 | 其他参数 |
 
@@ -528,16 +1069,19 @@ Authorization: Bearer <access_token>
   "message": "Video saved successfully",
   "data": {
     "asset_id": "uuid",
-    "video_url": "https://example.com/video.mp4",
-    "preview_url": "https://example.com/preview.jpg"
+    "video_url": "https://oss.example.com/permanent_video.mp4",
+    "preview_url": "https://example.com/preview.jpg",
+    "oss_object_key": "video/user_id/asset_id.mp4"
   },
   "count": 1
 }
 ```
 
+**说明**: 此接口会将临时视频 URL 下载到 OSS 永久存储，并创建资产记录
+
 ---
 
-### 4. 健康检查
+### 5. 健康检查
 
 **端点**: `GET /health`
 
@@ -647,6 +1191,14 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.2 (2026-03-31)
+- 新增 `/generateMultiImageAnime` - 支持多张图片依次生成动画并合并
+- 完善 Asset 模块接口文档
+- 完善 Work 模块接口文档
+- 完善 Chapter 模块接口文档
+- 新增 `_poll_task_status` 方法支持视频任务轮询
+- 新增 `_call_video_generation_api_for_merge` 方法支持视频合并
 
 ### v2.1 (2026-03-24)
 - 拆分 Picture 和 Anime 为两个独立模块

@@ -67,6 +67,102 @@ class AnimeService:
                 'error': f"Animation generation failed: {result.get('error')}"
             }
 
+    def generate_multi_image_anime(self, session_id: str, user_id: str,
+                                    images: List[Dict], parameters: Dict,
+                                    conversation_history, video_generation_service) -> Dict:
+        """
+        为多张图片依次生成动画，最后合并成一个视频
+
+        Args:
+            session_id: 会话 ID
+            user_id: 用户 ID
+            images: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str}
+            parameters: 生成参数
+            conversation_history: 对话历史服务
+            video_generation_service: 视频生成服务
+
+        Returns:
+            Dict: 包含成功状态和结果数据
+        """
+        if not images or len(images) == 0:
+            return {
+                'success': False,
+                'error': 'At least one image is required'
+            }
+
+        # 为每张图片生成提示词
+        user_prompt = parameters.get('prompt', '')
+        style = parameters.get('style', 'anime')
+        prompt = f"漫画图片，{style}风格，自然流畅的动画效果，{user_prompt}"
+
+        # 为每张图片依次生成动画
+        video_results = []
+        total_duration = 0
+
+        for i, image in enumerate(images):
+            picture_url = image.get('picture_url')
+            oss_object_key = image.get('oss_object_key')
+
+            logger.info(f"Generating animation for image {i+1}/{len(images)}: {oss_object_key}")
+
+            # 为当前图片生成动画
+            result = video_generation_service.generate_single_image_anime(
+                image_url=picture_url,
+                prompt=prompt,
+                duration=parameters.get('duration', 5),
+                motion_strength=parameters.get('motion_strength', 0.5)
+            )
+
+            if result.get('success'):
+                video_results.append(result)
+                total_duration += result.get('duration', 5)
+            else:
+                logger.error(f"Failed to generate animation for image {i+1}: {result.get('error')}")
+                return {
+                    'success': False,
+                    'error': f"Failed to generate animation for image {i+1}: {result.get('error')}",
+                    'processed_count': i,
+                    'total_count': len(images)
+                }
+
+        # 所有图片都生成成功，合并视频
+        logger.info(f"All {len(images)} animations generated, merging videos...")
+
+        merge_result = video_generation_service.merge_videos(
+            video_urls=[r.get('video_url') for r in video_results],
+            transition_type=parameters.get('transition', 'fade'),
+            transition_duration=parameters.get('transition_duration', 0.5)
+        )
+
+        if merge_result.get('success'):
+            # 记录到对话历史
+            conversation_history.add_message(
+                session_id=session_id,
+                role='assistant',
+                content=f"已为 {len(images)} 张图片生成动画并合并",
+                metadata={
+                    'video_results': video_results,
+                    'merged_video_url': merge_result.get('video_url'),
+                    'panel_count': len(images),
+                    'total_duration': total_duration
+                }
+            )
+
+            return {
+                'success': True,
+                'session_id': session_id,
+                'video_url': merge_result.get('video_url'),
+                'preview_url': merge_result.get('preview_url'),
+                'panel_count': len(images),
+                'total_duration': total_duration,
+                'individual_videos': video_results
+            }
+        else:
+            return {
+                'success': False,
+                'error': f"Failed to merge videos: {merge_result.get('error')}"
+            }
+
     def chat(self, session_id: str, user_id: str, picture_url: str, oss_object_key: str,
              user_message: str, conversation_history) -> Dict:
         """

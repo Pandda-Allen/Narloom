@@ -17,6 +17,7 @@ from services.db import MySQLService, MongoService
 from services.storage import oss_service
 import logging
 import uuid
+from typing import List, Dict
 
 anime_bp = Blueprint('anime', __name__)
 logger = logging.getLogger(__name__)
@@ -83,6 +84,47 @@ def _get_picture_from_request(user_id: str):
                 return upload_result['url'], object_key
 
     return None, None
+
+
+def _get_pictures_from_request(user_id: str) -> List[Dict]:
+    """
+    从请求中获取上传的多张图片文件并上传到 OSS
+
+    Args:
+        user_id: 用户 ID
+
+    Returns:
+        List[Dict]: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str}
+    """
+    images = []
+
+    # 支持多文件上传 (pictures) 或单个文件 (picture)
+    files = request.files.getlist('pictures')
+    if not files:
+        # 尝试从 picture 字段获取
+        if RequestParams.PICTURE in request.files:
+            files = request.files.getlist(RequestParams.PICTURE)
+
+    for file in files:
+        if file and file.filename:
+            file_content = file.read()
+            file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else Defaults.IMAGE_EXTENSION
+            object_key = oss_service.generate_object_key(user_id, file_extension)
+
+            upload_result = oss_service.upload_picture(
+                file_content=file_content,
+                object_key=object_key,
+                content_type=file.content_type or FileTypes.IMAGE_JPEG
+            )
+
+            if upload_result.get('success'):
+                images.append({
+                    'picture_url': upload_result['url'],
+                    'oss_object_key': object_key,
+                    'original_filename': file.filename
+                })
+
+    return images
 
 
 @anime_bp.route('/generateAnime', methods=['POST'])
@@ -154,6 +196,104 @@ def generate_anime():
             message=ResponseMessage.GENERATE_SUCCESS,
             data=result,
             count=1
+        )
+    else:
+        return error_response(result.get('error'), 500)
+
+
+@anime_bp.route('/generateMultiImageAnime', methods=['POST'])
+@handle_errors
+def generate_multi_image_anime():
+    """
+    为多张图片依次生成动画并合并成一个视频
+
+    请求参数：
+    - user_id: 用户 ID (必填)
+    - session_id: 会话 ID (可选，用于多轮对话)
+    - pictures: 多张图片文件 (multipart/form-data，至少 1 张)
+    - asset_ids: 已上传图片的资产 ID 列表 (可选，逗号分隔)
+    - oss_object_keys: OSS 对象键列表 (可选，逗号分隔)
+    - parameters: 生成参数 (可选)
+        - prompt: 提示词
+        - style: 风格 (默认 anime)
+        - duration: 每张图片的动画时长 (默认 5 秒)
+        - motion_strength: 运动强度 (默认 0.5)
+        - transition: 转场效果 (默认 fade)
+        - transition_duration: 转场时长 (默认 0.5 秒)
+
+    返回：
+    - session_id: 会话 ID
+    - video_url: 合并后的视频 URL
+    - preview_url: 预览图 URL
+    - panel_count: 图片数量
+    - total_duration: 总时长
+    - individual_videos: 每个图片生成的视频详情
+    """
+    # 解析请求数据
+    data = request.form if request.files else request.get_json() or {}
+    if data is None:
+        return error_response(ResponseMessage.INVALID_REQUEST, 400)
+
+    validate_required_fields(data, [RequestParams.USER_ID])
+
+    # 提取参数
+    user_id = data.get(RequestParams.USER_ID)
+    session_id = data.get(RequestParams.SESSION_ID)
+    parameters = data.get(RequestParams.PARAMETERS, {})
+
+    # 获取图片列表
+    images = []
+
+    # 1. 从 asset_ids 获取图片
+    asset_ids_str = data.get('asset_ids', '')
+    if asset_ids_str:
+        asset_ids = [aid.strip() for aid in asset_ids_str.split(',') if aid.strip()]
+        for asset_id in asset_ids:
+            mysql_row = MySQLService().fetch_asset_by_id(asset_id)
+            if mysql_row and mysql_row['user_id'] == user_id:
+                asset_data = MongoService().fetch_asset_data(asset_id)
+                if asset_data:
+                    images.append({
+                        'picture_url': asset_data.get('oss_url'),
+                        'oss_object_key': asset_data.get('oss_object_key')
+                    })
+
+    # 2. 从 oss_object_keys 获取图片
+    oss_object_keys_str = data.get('oss_object_keys', '')
+    if oss_object_keys_str:
+        oss_object_keys = [key.strip() for key in oss_object_keys_str.split(',') if key.strip()]
+        for oss_object_key in oss_object_keys:
+            url_result = oss_service.get_picture_url(oss_object_key)
+            if url_result.get('success'):
+                images.append({
+                    'picture_url': url_result['url'],
+                    'oss_object_key': oss_object_key
+                })
+
+    # 3. 从上传的文件获取图片
+    uploaded_images = _get_pictures_from_request(user_id)
+    images.extend(uploaded_images)
+
+    # 验证至少有一张图片
+    if not images:
+        return error_response('Must provide at least one image via pictures, asset_ids, or oss_object_keys', 400)
+
+    # 创建会话
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    # 调用生成服务
+    result = anime_service.generate_multi_image_anime(
+        session_id, user_id, images, parameters,
+        conversation_history, video_generation_service
+    )
+
+    if result.get('success'):
+        return api_response(
+            success=True,
+            message=ResponseMessage.GENERATE_SUCCESS,
+            data=result,
+            count=len(images)
         )
     else:
         return error_response(result.get('error'), 500)

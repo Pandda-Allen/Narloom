@@ -33,12 +33,6 @@ def create_app(config_name='default'):
     # 初始化视频生成服务
     init_video_generation_service(app)
 
-    # 初始化 OSS 服务（统一对象存储接口）
-    init_oss_service(app)
-
-    # 初始化 Video 服务（视频存储）
-    init_video_service(app)
-
     # 注册 Flask Blueprints
     register_blueprints(app)
 
