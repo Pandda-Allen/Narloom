@@ -7,12 +7,8 @@ from flask import Blueprint, request
 from utils.response_helper import error_response, api_response
 from utils.decorators import handle_errors
 from utils.general_helper import validate_required_fields
-from utils.constants import (
-    RequestParams, ResponseMessage, Defaults, FileTypes, SessionConfig,
-)
+from utils.constants import RequestParams, ResponseMessage, Defaults, FileTypes
 from services.anime_service import anime_service
-from services.video_generation_service import video_generation_service
-from services.conversation_history import conversation_history
 from services.db import MySQLService, MongoService
 from services.storage import oss_service
 import logging
@@ -57,18 +53,19 @@ def _get_picture_source(user_id: str, asset_id: str = None, oss_object_key: str 
     return None, None
 
 
-def _get_picture_from_request(user_id: str):
+def _get_picture_from_request(user_id: str, field_name: str = RequestParams.PICTURE):
     """
     从请求中获取上传的图片文件并上传到 OSS
 
     Args:
         user_id: 用户 ID
+        field_name: 表单字段名 (默认 'picture'，尾帧可用 'end_picture')
 
     Returns:
         tuple: (picture_url, oss_object_key) 或 (None, None)
     """
-    if RequestParams.PICTURE in request.files:
-        file = request.files[RequestParams.PICTURE]
+    if field_name in request.files:
+        file = request.files[field_name]
         if file and file.filename:
             file_content = file.read()
             file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else Defaults.IMAGE_EXTENSION
@@ -136,15 +133,26 @@ def generate_anime():
     请求参数：
     - user_id: 用户 ID (必填)
     - session_id: 会话 ID (可选，用于多轮对话)
-    - asset_id: 已上传图片的资产 ID (可选)
-    - oss_object_key: OSS 对象键 (可选)
-    - picture: 新图片文件 (可选)
+    - frame_mode: 帧模式 (可选，single / start_end，默认 single)
+    - 首帧图片参数 (三选一):
+        - asset_id: 已上传图片的资产 ID
+        - oss_object_key: OSS 对象键
+        - picture: 新图片文件
+    - 尾帧图片参数 (frame_mode=start_end 时必填，三选一):
+        - end_asset_id: 已上传图片的资产 ID
+        - end_oss_object_key: OSS 对象键
+        - end_picture: 新图片文件
     - parameters: 生成参数 (可选)
+        - prompt: 提示词
+        - style: 风格 (默认 anime)
+        - duration: 动画时长 (默认 5 秒)
+        - motion_strength: 运动强度 (默认 0.5)
 
     返回：
     - session_id: 会话 ID
     - video_url: 生成的视频 URL
     - preview_url: 预览图 URL
+    - frame_mode: 使用的帧模式
     """
     # 解析请求数据
     data = request.form if request.files else request.get_json() or {}
@@ -156,38 +164,46 @@ def generate_anime():
     # 提取参数
     user_id = data.get(RequestParams.USER_ID)
     session_id = data.get(RequestParams.SESSION_ID)
+    frame_mode = data.get('frame_mode', 'single')
+
+    # 首帧图片参数
     asset_id = data.get(RequestParams.ASSET_ID)
     oss_object_key = data.get(RequestParams.OSS_OBJECT_KEY)
+
+    # 尾帧图片参数
+    end_asset_id = data.get('end_asset_id')
+    end_oss_object_key = data.get('end_oss_object_key')
+
     parameters = data.get(RequestParams.PARAMETERS, {})
 
-    # 获取图片 URL
+    # 获取首帧图片 URL（优先级：asset_id -> oss_object_key -> picture 文件）
     picture_url, oss_object_key = _get_picture_source(user_id, asset_id, oss_object_key)
-
-    # 如果没有找到图片，尝试从请求文件中获取
     if not picture_url:
-        picture_url, oss_object_key = _get_picture_from_request(user_id)
+        picture_url, oss_object_key = _get_picture_from_request(user_id, RequestParams.PICTURE)
 
     if not picture_url:
-        return error_response('Must provide either picture file, asset_id, or oss_object_key', 400)
+        return error_response('Must provide picture file, asset_id, or oss_object_key for start frame', 400)
 
-    # 如果没有 session_id，创建新会话
-    if not session_id:
-        session_id = str(uuid.uuid4())
-        conversation_history.create_session(
-            session_id=session_id,
-            user_id=user_id,
-            context_type=SessionConfig.CONTEXT_TYPE_ANIME_GENERATION,
-            context_data={
-                RequestParams.ASSET_ID: asset_id,
-                RequestParams.OSS_OBJECT_KEY: oss_object_key,
-                'image_url': picture_url
-            }
-        )
+    # 获取尾帧图片 URL (如果需要)
+    end_picture_url = None
+    if frame_mode == 'start_end':
+        # 优先级：end_asset_id -> end_oss_object_key -> end_picture 文件
+        end_picture_url, _ = _get_picture_source(user_id, end_asset_id, end_oss_object_key)
+        if not end_picture_url:
+            end_picture_url, _ = _get_picture_from_request(user_id, 'end_picture')
+
+        if not end_picture_url:
+            return error_response('Must provide end_picture file, end_asset_id, or end_oss_object_key when frame_mode=start_end', 400)
 
     # 调用生成服务
     result = anime_service.generate_anime(
-        session_id, user_id, picture_url, oss_object_key, parameters,
-        conversation_history, video_generation_service
+        session_id=session_id,
+        user_id=user_id,
+        first_frame_url=picture_url,
+        first_frame_oss_key=oss_object_key,
+        last_frame_url=end_picture_url,
+        last_frame_oss_key=None,
+        parameters=parameters
     )
 
     if result.get('success'):
@@ -220,6 +236,9 @@ def generate_multi_image_anime():
         - motion_strength: 运动强度 (默认 0.5)
         - transition: 转场效果 (默认 fade)
         - transition_duration: 转场时长 (默认 0.5 秒)
+        - frame_mode: 帧模式 (可选，single / start_end)
+            - single: 每张图片单独生成动画 (默认)
+            - start_end: 相邻两张图片作为首尾帧生成动画
 
     返回：
     - session_id: 会话 ID
@@ -228,6 +247,7 @@ def generate_multi_image_anime():
     - panel_count: 图片数量
     - total_duration: 总时长
     - individual_videos: 每个图片生成的视频详情
+    - frame_mode: 使用的帧模式
     """
     # 解析请求数据
     data = request.form if request.files else request.get_json() or {}
@@ -284,8 +304,10 @@ def generate_multi_image_anime():
 
     # 调用生成服务
     result = anime_service.generate_multi_image_anime(
-        session_id, user_id, images, parameters,
-        conversation_history, video_generation_service
+        session_id=session_id,
+        user_id=user_id,
+        images=images,
+        parameters=parameters
     )
 
     if result.get('success'):
@@ -342,8 +364,11 @@ def chat():
 
     # 调用聊天服务
     result = anime_service.chat(
-        session_id, user_id, picture_url, oss_object_key, user_message,
-        conversation_history
+        session_id=session_id,
+        user_id=user_id,
+        picture_url=picture_url,
+        oss_object_key=oss_object_key,
+        user_message=user_message
     )
 
     if result.get('success'):
@@ -386,7 +411,7 @@ def confirm():
     parameters = data.get(RequestParams.PARAMETERS, {})
 
     # 调用确认服务
-    result = anime_service.confirm(user_id, parameters, conversation_history)
+    result = anime_service.confirm(user_id=user_id, parameters=parameters)
 
     if result.get('success'):
         return api_response(

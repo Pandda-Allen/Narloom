@@ -3,7 +3,7 @@ Anime Service 模块
 提供漫画图片动画生成等功能
 """
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -13,18 +13,42 @@ class AnimeService:
     """Anime 服务类，提供漫画动画生成相关功能"""
 
     def __init__(self):
-        pass
+        self._video_generation_service = None
+        self._conversation_history = None
 
-    def generate_anime(self, session_id: str, user_id: str, picture_url: str, oss_object_key: str,
-                       parameters: Dict, conversation_history, video_generation_service) -> Dict:
+    def initialize(self, video_generation_service, conversation_history):
+        """初始化服务依赖"""
+        self._video_generation_service = video_generation_service
+        self._conversation_history = conversation_history
+
+    @property
+    def video_generation_service(self):
+        if self._video_generation_service is None:
+            from services.video_generation_service import video_generation_service
+            self._video_generation_service = video_generation_service
+        return self._video_generation_service
+
+    @property
+    def conversation_history(self):
+        if self._conversation_history is None:
+            from services.conversation_history import conversation_history
+            self._conversation_history = conversation_history
+        return self._conversation_history
+
+    def generate_anime(self, session_id: str, user_id: str,
+                       first_frame_url: str, first_frame_oss_key: str,
+                       last_frame_url: Optional[str], last_frame_oss_key: Optional[str],
+                       parameters: Dict) -> Dict:
         """
-        为单张图片生成动画
+        生成动画 - 主入口方法，根据帧模式分发到具体实现
 
         Args:
             session_id: 会话 ID
             user_id: 用户 ID
-            picture_url: 图片 URL
-            oss_object_key: OSS 对象键
+            first_frame_url: 首帧图片 URL
+            first_frame_oss_key: 首帧 OSS 对象键
+            last_frame_url: 尾帧图片 URL (单帧模式为 None)
+            last_frame_oss_key: 尾帧 OSS 对象键 (单帧模式为 None)
             parameters: 生成参数
             conversation_history: 对话历史服务
             video_generation_service: 视频生成服务
@@ -32,34 +56,127 @@ class AnimeService:
         Returns:
             Dict: 包含成功状态和结果数据
         """
-        # 为整张图片生成提示词
+        # 获取模型配置
+        model_config = self.video_generation_service.get_current_model_config()
+        video_model = model_config["video_model"]
+
+        # 组装公共生成参数
         user_prompt = parameters.get('prompt', '')
         style = parameters.get('style', 'anime')
         prompt = f"漫画图片，{style}风格，自然流畅的动画效果，{user_prompt}"
 
-        # 直接为单张图片生成动画
-        result = video_generation_service.generate_single_image_anime(
-            image_url=picture_url,
-            prompt=prompt,
-            duration=parameters.get('duration', 5),
-            motion_strength=parameters.get('motion_strength', 0.5)
+        # 根据是否提供尾帧 URL 判断帧模式，并组装完整的 payload
+        if last_frame_url:
+            # 首尾帧模式 payload
+            payload = {
+                "model": video_model,
+                "input": {
+                    "first_frame_url": first_frame_url,
+                    "last_frame_url": last_frame_url,
+                    "prompt": prompt
+                },
+                "parameters": {
+                    "duration": parameters.get('duration', 5),
+                    "resolution": "720P",
+                    "motion_strength": parameters.get('motion_strength', 0.5)
+                }
+            }
+            # 调用首尾帧模式
+            return self._generate_start_end_frame_anime(
+                session_id=session_id,
+                payload=payload,
+                api_endpoint='/services/aigc/image2video/video-synthesis'
+            )
+        else:
+            # 单帧模式 payload
+            payload = {
+                "model": video_model,
+                "input": {
+                    "img_url": first_frame_url,
+                    "prompt": prompt
+                },
+                "parameters": {
+                    "duration": parameters.get('duration', 5),
+                    "resolution": "720P",
+                    "motion_strength": parameters.get('motion_strength', 0.5)
+                }
+            }
+            # 调用单帧模式
+            return self._generate_single_frame_anime(
+                session_id=session_id,
+                payload=payload,
+                api_endpoint='/services/aigc/video-generation/video-synthesis'
+            )
+
+    def _generate_single_frame_anime(self, session_id: str,
+                                      payload: Dict,
+                                      api_endpoint: str) -> Dict:
+        """
+        为单张图片生成动画（首帧模式）
+
+        Args:
+            session_id: 会话 ID
+            payload: 完整的 API payload（包含 model, input, parameters）
+            api_endpoint: API 端点路径
+
+        Returns:
+            Dict: 包含成功状态和结果数据
+        """
+        # 调用视频生成 API
+        result = self.video_generation_service.call_video_api(
+            payload=payload,
+            api_endpoint=api_endpoint,
+            session_id=session_id,
+            conversation_history=self.conversation_history
         )
 
         if result.get('success'):
-            conversation_history.add_message(
-                session_id=session_id,
-                role='assistant',
-                content=f"动画生成完成",
-                metadata={'video_result': result}
-            )
-
             return {
                 'success': True,
                 'session_id': session_id,
                 'video_url': result.get('video_url'),
-                'preview_url': result.get('preview_url'),
                 'panel_count': 1,
-                'total_duration': result.get('duration', 5),
+                'total_duration': result.get('duration', payload['parameters'].get('duration', 5)),
+                'frame_mode': 'single',
+                'task_id': result.get('task_id')
+            }
+        else:
+            return {
+                'success': False,
+                'error': f"Animation generation failed: {result.get('error')}"
+            }
+
+    def _generate_start_end_frame_anime(self, session_id: str,
+                                         payload: Dict,
+                                         api_endpoint: str) -> Dict:
+        """
+        为两张图片生成动画（首尾帧模式）
+
+        Args:
+            session_id: 会话 ID
+            payload: 完整的 API payload（包含 model, input, parameters）
+            api_endpoint: API 端点路径
+
+        Returns:
+            Dict: 包含成功状态和结果数据
+        """
+        # 调用视频生成 API
+        result = self.video_generation_service.call_video_api(
+            payload=payload,
+            api_endpoint=api_endpoint,
+            session_id=session_id,
+            conversation_history=self.conversation_history
+        )
+
+        if result.get('success'):
+            return {
+                'success': True,
+                'session_id': session_id,
+                'video_url': result.get('video_url'),
+                'panel_count': 1,
+                'total_duration': result.get('duration', payload['parameters'].get('duration', 5)),
+                'frame_mode': 'start_end',
+                'task_id': result.get('task_id')
             }
         else:
             return {
@@ -68,8 +185,7 @@ class AnimeService:
             }
 
     def generate_multi_image_anime(self, session_id: str, user_id: str,
-                                    images: List[Dict], parameters: Dict,
-                                    conversation_history, video_generation_service) -> Dict:
+                                    images: List[Dict], parameters: Dict) -> Dict:
         """
         为多张图片依次生成动画，最后合并成一个视频
 
@@ -90,10 +206,17 @@ class AnimeService:
                 'error': 'At least one image is required'
             }
 
-        # 为每张图片生成提示词
+        # 获取模型配置
+        model_config = self.video_generation_service.get_current_model_config()
+        video_model = model_config["video_model"]
+
+        # 组装公共生成参数
         user_prompt = parameters.get('prompt', '')
         style = parameters.get('style', 'anime')
         prompt = f"漫画图片，{style}风格，自然流畅的动画效果，{user_prompt}"
+
+        # 获取帧模式参数：single(单帧) / start_end(首尾帧)
+        frame_mode = parameters.get('frame_mode', 'single')
 
         # 为每张图片依次生成动画
         video_results = []
@@ -105,17 +228,55 @@ class AnimeService:
 
             logger.info(f"Generating animation for image {i+1}/{len(images)}: {oss_object_key}")
 
-            # 为当前图片生成动画
-            result = video_generation_service.generate_single_image_anime(
-                image_url=picture_url,
-                prompt=prompt,
-                duration=parameters.get('duration', 5),
-                motion_strength=parameters.get('motion_strength', 0.5)
+            # 根据帧模式组装 payload
+            if frame_mode == 'start_end' and i < len(images) - 1:
+                # 首尾帧模式：使用当前图片和下一张图片作为首尾帧
+                next_image = images[i + 1]
+                end_image_url = next_image.get('picture_url')
+
+                logger.info(f"Using start_end frame mode: {picture_url} -> {end_image_url}")
+
+                payload = {
+                    "model": video_model,
+                    "input": {
+                        "first_frame_url": picture_url,
+                        "last_frame_url": end_image_url,
+                        "prompt": prompt
+                    },
+                    "parameters": {
+                        "duration": parameters.get('duration', 5),
+                        "resolution": "720P",
+                        "motion_strength": parameters.get('motion_strength', 0.5)
+                    }
+                }
+                api_endpoint = '/services/aigc/image2video/video-synthesis'
+            else:
+                # 单帧模式
+                payload = {
+                    "model": video_model,
+                    "input": {
+                        "img_url": picture_url,
+                        "prompt": prompt
+                    },
+                    "parameters": {
+                        "duration": parameters.get('duration', 5),
+                        "resolution": "720P",
+                        "motion_strength": parameters.get('motion_strength', 0.5)
+                    }
+                }
+                api_endpoint = '/services/aigc/video-generation/video-synthesis'
+
+            # 调用视频生成 API
+            result = self.video_generation_service.call_video_api(
+                payload=payload,
+                api_endpoint=api_endpoint,
+                session_id=session_id,
+                conversation_history=self.conversation_history
             )
 
             if result.get('success'):
                 video_results.append(result)
-                total_duration += result.get('duration', 5)
+                total_duration += result.get('duration', parameters.get('duration', 5))
             else:
                 logger.error(f"Failed to generate animation for image {i+1}: {result.get('error')}")
                 return {
@@ -128,23 +289,23 @@ class AnimeService:
         # 所有图片都生成成功，合并视频
         logger.info(f"All {len(images)} animations generated, merging videos...")
 
-        merge_result = video_generation_service.merge_videos(
+        merge_result = self.video_generation_service.merge_videos(
             video_urls=[r.get('video_url') for r in video_results],
             transition_type=parameters.get('transition', 'fade'),
             transition_duration=parameters.get('transition_duration', 0.5)
         )
 
         if merge_result.get('success'):
-            # 记录到对话历史
-            conversation_history.add_message(
+            # 记录到对话历史（合并操作不直接调用大模型 API，所以这里存储合并结果）
+            self.conversation_history.add_message(
                 session_id=session_id,
                 role='assistant',
-                content=f"已为 {len(images)} 张图片生成动画并合并",
+                content=f"已为 {len(images)} 张图片生成动画并合并（帧模式：{frame_mode}）",
                 metadata={
-                    'video_results': video_results,
                     'merged_video_url': merge_result.get('video_url'),
                     'panel_count': len(images),
-                    'total_duration': total_duration
+                    'total_duration': total_duration,
+                    'frame_mode': frame_mode
                 }
             )
 
@@ -152,10 +313,10 @@ class AnimeService:
                 'success': True,
                 'session_id': session_id,
                 'video_url': merge_result.get('video_url'),
-                'preview_url': merge_result.get('preview_url'),
                 'panel_count': len(images),
                 'total_duration': total_duration,
-                'individual_videos': video_results
+                'individual_videos': video_results,
+                'frame_mode': frame_mode
             }
         else:
             return {
@@ -164,7 +325,7 @@ class AnimeService:
             }
 
     def chat(self, session_id: str, user_id: str, picture_url: str, oss_object_key: str,
-             user_message: str, conversation_history) -> Dict:
+             user_message: str) -> Dict:
         """
         处理对话模式：多轮对话交互
 
@@ -174,7 +335,6 @@ class AnimeService:
             picture_url: 图片 URL
             oss_object_key: OSS 对象键
             user_message: 用户消息
-            conversation_history: 对话历史服务
 
         Returns:
             Dict: 包含成功状态和结果数据
@@ -186,9 +346,9 @@ class AnimeService:
             }
 
         # 获取或创建会话
-        session = conversation_history.get_session(session_id)
+        session = self.conversation_history.get_session(session_id)
         if not session:
-            conversation_history.create_session(
+            self.conversation_history.create_session(
                 session_id=session_id,
                 user_id=user_id,
                 context_type='anime_generation',
@@ -200,7 +360,7 @@ class AnimeService:
             )
 
         # 获取更新后的历史（包含自动总结）
-        updated_messages = conversation_history.get_messages(session_id, include_summaries=True)
+        updated_messages = self.conversation_history.get_messages(session_id, include_summaries=True)
 
         # 构建发送给 AI 的完整 prompt
         system_prompt = """你是一位专业的漫画动画生成助手。你可以帮助用户：
@@ -218,7 +378,7 @@ class AnimeService:
             "context": updated_messages[-10:] if len(updated_messages) > 10 else updated_messages,
             "image_url": picture_url
         }
-        conversation_history.add_message(
+        self.conversation_history.add_message(
             session_id=session_id,
             role='user',
             content=user_message,
@@ -234,7 +394,7 @@ class AnimeService:
             "model": "qwen3.5-plus",
             "request_prompt": user_message
         }
-        conversation_history.add_message(
+        self.conversation_history.add_message(
             session_id=session_id,
             role='assistant',
             content=ai_response,
@@ -242,7 +402,7 @@ class AnimeService:
         )
 
         # 重新获取历史以获取总结
-        _, summary = conversation_history.get_messages(session_id, include_summaries=True)
+        _, summary = self.conversation_history.get_messages(session_id, include_summaries=True)
 
         return {
             'success': True,
@@ -252,7 +412,7 @@ class AnimeService:
             'turn_count': len(updated_messages)
         }
 
-    def confirm(self, user_id: str, parameters: Dict, conversation_history) -> Dict:
+    def confirm(self, user_id: str, parameters: Dict) -> Dict:
         """
         处理确认模式：用户确认保存生成的视频
 
@@ -268,7 +428,6 @@ class AnimeService:
         from services.storage import oss_service
 
         video_url = parameters.get('video_url')
-        preview_url = parameters.get('preview_url')
 
         if not video_url:
             return {
@@ -298,7 +457,6 @@ class AnimeService:
         video_asset_data = {
             'type': 'comic_video',
             'video_url': oss_result.get('oss_url'),  # OSS 永久 URL
-            'preview_url': preview_url,
             'source_asset_id': None,
             'oss_object_key': oss_result.get('oss_object_key'),
             'parameters': parameters,
@@ -318,8 +476,8 @@ class AnimeService:
             }
 
         # 4. 更新会话历史（记录保存操作）
-        if conversation_history:
-            conversation_history.add_message(
+        if self.conversation_history:
+            self.conversation_history.add_message(
                 session_id=parameters.get('session_id', 'default'),
                 role='assistant',
                 content='视频已保存到 OSS',
@@ -333,7 +491,6 @@ class AnimeService:
             'success': True,
             'asset_id': asset_id,
             'video_url': oss_result.get('oss_url'),
-            'preview_url': preview_url,
             'oss_object_key': oss_result.get('oss_object_key')
         }
 

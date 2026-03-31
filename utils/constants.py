@@ -98,6 +98,7 @@ class RequestParams:
 
     # 生成参数
     MODE = 'mode'
+    FRAME_MODE = 'frame_mode'  # 视频生成模式：single(单帧) / start_end(首尾帧)
     PROMPT = 'prompt'
     STYLE = 'style'
     DURATION = 'duration'

@@ -1,7 +1,7 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.2
+**版本**: 2.3
 **更新日期**: 2026-03-31
 **基础路径**: `/`
 
@@ -907,7 +907,7 @@ Authorization: Bearer <access_token>
 
 **基础路径**: `/rest/v1/anime`
 
-### 1. 生成动画（单张图片）
+### 1. 生成动画（单张/首尾帧）
 
 **端点**: `POST /generateAnime`
 
@@ -918,9 +918,15 @@ Authorization: Bearer <access_token>
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
 | `session_id` | String | 否 | 会话 ID (不传则自动创建) |
+| `frame_mode` | String | 否 | 帧模式：`single`(单帧) / `start_end`(首尾帧)，默认 `single` |
+| **首帧图片参数** (三选一) |
 | `asset_id` | String | 否 | 已上传图片的资产 ID |
 | `oss_object_key` | String | 否 | OSS 对象键 |
 | `picture` | File | 否 | 新图片文件 |
+| **尾帧图片参数** (`frame_mode=start_end` 时必填，三选一) |
+| `end_asset_id` | String | 否 | 尾帧图片的资产 ID |
+| `end_oss_object_key` | String | 否 | 尾帧图片的 OSS 对象键 |
+| `end_picture` | File | 否 | 尾帧图片文件 |
 | `parameters` | Object | 否 | 生成参数 |
 
 **parameters 参数说明**:
@@ -943,16 +949,59 @@ Authorization: Bearer <access_token>
     "video_url": "https://example.com/video.mp4",
     "preview_url": "https://example.com/preview.jpg",
     "panel_count": 1,
-    "total_duration": 5
+    "total_duration": 5,
+    "frame_mode": "start_end"
   },
   "count": 1
 }
 ```
 
-**图片来源优先级**:
-1. `asset_id` - 从数据库获取
-2. `oss_object_key` - 直接生成 URL
-3. `picture` - 上传新图片到 OSS
+**图片来源优先级** (首帧和尾帧相同):
+1. `asset_id` / `end_asset_id` - 从数据库获取
+2. `oss_object_key` / `end_oss_object_key` - 直接生成 URL
+3. `picture` / `end_picture` - 上传新图片到 OSS
+
+**示例 1 - 单帧模式**:
+```json
+{
+  "user_id": "uuid",
+  "asset_id": "asset-uuid",
+  "parameters": {
+    "prompt": "流畅的动画效果",
+    "duration": 5
+  }
+}
+```
+
+**示例 2 - 首尾帧模式 (使用 asset_id)**:
+```json
+{
+  "user_id": "uuid",
+  "frame_mode": "start_end",
+  "asset_id": "start-asset-uuid",
+  "end_asset_id": "end-asset-uuid",
+  "parameters": {
+    "prompt": "从第一帧平滑过渡到最后一帧",
+    "duration": 5
+  }
+}
+```
+
+**示例 3 - 首尾帧模式 (使用文件上传)**:
+```
+POST /generateAnime
+Content-Type: multipart/form-data
+
+user_id=uuid
+frame_mode=start_end
+picture=@start.jpg
+end_picture=@end.jpg
+parameters={"prompt": "流畅过渡", "duration": 5}
+```
+
+**说明**:
+- 单帧模式：只需提供首帧图片参数，调用 `generate_single_image_anime` 方法
+- 首尾帧模式：需要提供首帧和尾帧图片参数，调用 `generate_start_end_frame_anime` 方法
 
 ---
 
@@ -969,6 +1018,7 @@ Authorization: Bearer <access_token>
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
 | `session_id` | String | 否 | 会话 ID |
+| `frame_mode` | String | 否 | 帧模式：`single`(单帧) / `start_end`(首尾帧)，默认 `single` |
 | `pictures` | File[] | 否 | 多张图片文件 |
 | `asset_ids` | String | 否 | 资产 ID 列表 (逗号分隔) |
 | `oss_object_keys` | String | 否 | OSS 对象键列表 (逗号分隔) |
@@ -1003,11 +1053,16 @@ Authorization: Bearer <access_token>
         "preview_url": "https://example.com/preview1.jpg",
         "duration": 5
       }
-    ]
+    ],
+    "frame_mode": "single"
   },
   "count": 5
 }
 ```
+
+**frame_mode 说明**:
+- `single` (默认): 每张图片单独生成动画
+- `start_end`: 相邻两张图片作为首尾帧生成动画（例如：图片 1→图片 2，图片 2→图片 3）
 
 **图片来源**:
 - 可以混合使用 `pictures` (上传文件)、`asset_ids` (数据库资产)、`oss_object_keys` (OSS 对象键)
@@ -1191,6 +1246,16 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.3 (2026-03-31)
+- 新增 `frame_mode` 参数支持单帧/首尾帧动画生成
+  - `single`: 单张图片作为首帧生成动画（默认）
+  - `start_end`: 两张图片作为首尾帧生成动画
+- 新增首帧图片参数：`first_frame_asset_id`, `first_frame_oss_object_key`, `first_frame_picture`
+- 新增尾帧图片参数：`last_frame_asset_id`, `last_frame_oss_object_key`, `last_frame_picture`
+- 首帧和尾帧参数平级，都在 request 层级，不在 `parameters` 内
+- 更新 `/generateAnime` 接口文档
+- 更新 `/generateMultiImageAnime` 接口文档
 
 ### v2.2 (2026-03-31)
 - 新增 `/generateMultiImageAnime` - 支持多张图片依次生成动画并合并
