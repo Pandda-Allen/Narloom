@@ -917,6 +917,7 @@ Authorization: Bearer <access_token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID (用于关联作品) |
 | `session_id` | String | 否 | 会话 ID (不传则自动创建) |
 | `frame_mode` | String | 否 | 帧模式：`single`(单帧) / `start_end`(首尾帧)，默认 `single` |
 | **首帧图片参数** (三选一) |
@@ -950,7 +951,8 @@ Authorization: Bearer <access_token>
     "preview_url": "https://example.com/preview.jpg",
     "panel_count": 1,
     "total_duration": 5,
-    "frame_mode": "start_end"
+    "frame_mode": "start_end",
+    "work_id": "work-uuid"
   },
   "count": 1
 }
@@ -965,6 +967,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "user_id": "uuid",
+  "work_id": "work-uuid",
   "asset_id": "asset-uuid",
   "parameters": {
     "prompt": "流畅的动画效果",
@@ -977,6 +980,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "user_id": "uuid",
+  "work_id": "work-uuid",
   "frame_mode": "start_end",
   "asset_id": "start-asset-uuid",
   "end_asset_id": "end-asset-uuid",
@@ -993,6 +997,7 @@ POST /generateAnime
 Content-Type: multipart/form-data
 
 user_id=uuid
+work_id=work-uuid
 frame_mode=start_end
 picture=@start.jpg
 end_picture=@end.jpg
@@ -1017,6 +1022,7 @@ parameters={"prompt": "流畅过渡", "duration": 5}
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID (用于关联作品) |
 | `session_id` | String | 否 | 会话 ID |
 | `frame_mode` | String | 否 | 帧模式：`single`(单帧) / `start_end`(首尾帧)，默认 `single` |
 | `pictures` | File[] | 否 | 多张图片文件 |
@@ -1054,7 +1060,8 @@ parameters={"prompt": "流畅过渡", "duration": 5}
         "duration": 5
       }
     ],
-    "frame_mode": "single"
+    "frame_mode": "single",
+    "work_id": "work-uuid"
   },
   "count": 5
 }
@@ -1113,6 +1120,7 @@ parameters={"prompt": "流畅过渡", "duration": 5}
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID (用于关联作品) |
 | `video_url` | String | 是 | 视频 URL (临时 URL，需保存到 OSS) |
 | `preview_url` | String | 否 | 预览图 URL |
 | `parameters` | Object | 否 | 其他参数 |
@@ -1126,7 +1134,8 @@ parameters={"prompt": "流畅过渡", "duration": 5}
     "asset_id": "uuid",
     "video_url": "https://oss.example.com/permanent_video.mp4",
     "preview_url": "https://example.com/preview.jpg",
-    "oss_object_key": "video/user_id/asset_id.mp4"
+    "oss_object_key": "video/user_id/asset_id.mp4",
+    "work_id": "work-uuid"
   },
   "count": 1
 }

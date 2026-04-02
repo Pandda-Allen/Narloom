@@ -53,16 +53,17 @@ def _get_picture_source(user_id: str, asset_id: str = None, oss_object_key: str 
     return None, None
 
 
-def _get_picture_from_request(user_id: str, field_name: str = RequestParams.PICTURE):
+def _get_picture_from_request(user_id: str, field_name: str = RequestParams.PICTURE, work_id: str = None):
     """
     从请求中获取上传的图片文件并上传到 OSS
 
     Args:
         user_id: 用户 ID
         field_name: 表单字段名 (默认 'picture'，尾帧可用 'end_picture')
+        work_id: 作品 ID (可选，用于关联作品)
 
     Returns:
-        tuple: (picture_url, oss_object_key) 或 (None, None)
+        tuple: (picture_url, oss_object_key, asset_id) 或 (None, None, None)
     """
     if field_name in request.files:
         file = request.files[field_name]
@@ -78,20 +79,38 @@ def _get_picture_from_request(user_id: str, field_name: str = RequestParams.PICT
             )
 
             if upload_result.get('success'):
-                return upload_result['url'], object_key
+                # 如果需要关联 work，创建资产记录
+                asset_id = None
+                if work_id:
+                    asset_record = MySQLService().insert_asset(user_id, 'picture', work_id)
+                    asset_id = asset_record['asset_id']
+                    # 保存 OSS 信息到 MongoDB
+                    from services.db import MongoService
+                    from datetime import datetime
+                    asset_data = {
+                        'type': 'picture',
+                        'oss_url': upload_result['url'],
+                        'oss_object_key': object_key,
+                        'original_filename': file.filename,
+                        'created_at': datetime.now().isoformat()
+                    }
+                    MongoService().insert_asset_data(asset_id, asset_data)
 
-    return None, None
+                return upload_result['url'], object_key, asset_id
+
+    return None, None, None
 
 
-def _get_pictures_from_request(user_id: str) -> List[Dict]:
+def _get_pictures_from_request(user_id: str, work_id: str = None) -> List[Dict]:
     """
     从请求中获取上传的多张图片文件并上传到 OSS
 
     Args:
         user_id: 用户 ID
+        work_id: 作品 ID (可选，用于关联作品)
 
     Returns:
-        List[Dict]: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str}
+        List[Dict]: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str, 'asset_id': str}
     """
     images = []
 
@@ -115,10 +134,28 @@ def _get_pictures_from_request(user_id: str) -> List[Dict]:
             )
 
             if upload_result.get('success'):
+                # 如果需要关联 work，创建资产记录
+                asset_id = None
+                if work_id:
+                    asset_record = MySQLService().insert_asset(user_id, 'picture', work_id)
+                    asset_id = asset_record['asset_id']
+                    # 保存 OSS 信息到 MongoDB
+                    from services.db import MongoService
+                    from datetime import datetime
+                    asset_data = {
+                        'type': 'picture',
+                        'oss_url': upload_result['url'],
+                        'oss_object_key': object_key,
+                        'original_filename': file.filename,
+                        'created_at': datetime.now().isoformat()
+                    }
+                    MongoService().insert_asset_data(asset_id, asset_data)
+
                 images.append({
                     'picture_url': upload_result['url'],
                     'oss_object_key': object_key,
-                    'original_filename': file.filename
+                    'original_filename': file.filename,
+                    'asset_id': asset_id
                 })
 
     return images
@@ -132,6 +169,7 @@ def generate_anime():
 
     请求参数：
     - user_id: 用户 ID (必填)
+    - work_id: 作品 ID (必填，用于关联作品)
     - session_id: 会话 ID (可选，用于多轮对话)
     - frame_mode: 帧模式 (可选，single / start_end，默认 single)
     - 首帧图片参数 (三选一):
@@ -159,10 +197,11 @@ def generate_anime():
     if data is None:
         return error_response(ResponseMessage.INVALID_REQUEST, 400)
 
-    validate_required_fields(data, [RequestParams.USER_ID])
+    validate_required_fields(data, [RequestParams.USER_ID, RequestParams.WORK_ID])
 
     # 提取参数
     user_id = data.get(RequestParams.USER_ID)
+    work_id = data.get(RequestParams.WORK_ID)
     session_id = data.get(RequestParams.SESSION_ID)
     frame_mode = data.get('frame_mode', 'single')
 
@@ -179,7 +218,7 @@ def generate_anime():
     # 获取首帧图片 URL（优先级：asset_id -> oss_object_key -> picture 文件）
     picture_url, oss_object_key = _get_picture_source(user_id, asset_id, oss_object_key)
     if not picture_url:
-        picture_url, oss_object_key = _get_picture_from_request(user_id, RequestParams.PICTURE)
+        picture_url, oss_object_key, _ = _get_picture_from_request(user_id, RequestParams.PICTURE, work_id)
 
     if not picture_url:
         return error_response('Must provide picture file, asset_id, or oss_object_key for start frame', 400)
@@ -190,7 +229,7 @@ def generate_anime():
         # 优先级：end_asset_id -> end_oss_object_key -> end_picture 文件
         end_picture_url, _ = _get_picture_source(user_id, end_asset_id, end_oss_object_key)
         if not end_picture_url:
-            end_picture_url, _ = _get_picture_from_request(user_id, 'end_picture')
+            end_picture_url, _, _ = _get_picture_from_request(user_id, 'end_picture', work_id)
 
         if not end_picture_url:
             return error_response('Must provide end_picture file, end_asset_id, or end_oss_object_key when frame_mode=start_end', 400)
@@ -203,7 +242,8 @@ def generate_anime():
         first_frame_oss_key=oss_object_key,
         last_frame_url=end_picture_url,
         last_frame_oss_key=None,
-        parameters=parameters
+        parameters=parameters,
+        work_id=work_id
     )
 
     if result.get('success'):
@@ -225,6 +265,7 @@ def generate_multi_image_anime():
 
     请求参数：
     - user_id: 用户 ID (必填)
+    - work_id: 作品 ID (必填，用于关联作品)
     - session_id: 会话 ID (可选，用于多轮对话)
     - pictures: 多张图片文件 (multipart/form-data，至少 1 张)
     - asset_ids: 已上传图片的资产 ID 列表 (可选，逗号分隔)
@@ -254,10 +295,11 @@ def generate_multi_image_anime():
     if data is None:
         return error_response(ResponseMessage.INVALID_REQUEST, 400)
 
-    validate_required_fields(data, [RequestParams.USER_ID])
+    validate_required_fields(data, [RequestParams.USER_ID, RequestParams.WORK_ID])
 
     # 提取参数
     user_id = data.get(RequestParams.USER_ID)
+    work_id = data.get(RequestParams.WORK_ID)
     session_id = data.get(RequestParams.SESSION_ID)
     parameters = data.get(RequestParams.PARAMETERS, {})
 
@@ -275,7 +317,8 @@ def generate_multi_image_anime():
                 if asset_data:
                     images.append({
                         'picture_url': asset_data.get('oss_url'),
-                        'oss_object_key': asset_data.get('oss_object_key')
+                        'oss_object_key': asset_data.get('oss_object_key'),
+                        'asset_id': asset_id
                     })
 
     # 2. 从 oss_object_keys 获取图片
@@ -291,7 +334,7 @@ def generate_multi_image_anime():
                 })
 
     # 3. 从上传的文件获取图片
-    uploaded_images = _get_pictures_from_request(user_id)
+    uploaded_images = _get_pictures_from_request(user_id, work_id)
     images.extend(uploaded_images)
 
     # 验证至少有一张图片
@@ -307,7 +350,8 @@ def generate_multi_image_anime():
         session_id=session_id,
         user_id=user_id,
         images=images,
-        parameters=parameters
+        parameters=parameters,
+        work_id=work_id
     )
 
     if result.get('success'):
@@ -360,7 +404,7 @@ def chat():
 
     # 如果没有找到图片，尝试从请求文件中获取
     if not picture_url:
-        picture_url, oss_object_key = _get_picture_from_request(user_id)
+        picture_url, oss_object_key, _ = _get_picture_from_request(user_id)
 
     # 调用聊天服务
     result = anime_service.chat(
@@ -390,6 +434,7 @@ def confirm():
 
     请求参数：
     - user_id: 用户 ID (必填)
+    - work_id: 作品 ID (必填，用于关联作品)
     - video_url: 视频 URL (必填)
     - preview_url: 预览图 URL (可选)
     - parameters: 其他参数 (可选)
@@ -404,14 +449,15 @@ def confirm():
     if data is None:
         return error_response('Request body must be JSON', 400)
 
-    validate_required_fields(data, [RequestParams.USER_ID, RequestParams.VIDEO_URL])
+    validate_required_fields(data, [RequestParams.USER_ID, RequestParams.WORK_ID, RequestParams.VIDEO_URL])
 
     # 提取参数
     user_id = data.get(RequestParams.USER_ID)
+    work_id = data.get(RequestParams.WORK_ID)
     parameters = data.get(RequestParams.PARAMETERS, {})
 
     # 调用确认服务
-    result = anime_service.confirm(user_id=user_id, parameters=parameters)
+    result = anime_service.confirm(user_id=user_id, work_id=work_id, parameters=parameters)
 
     if result.get('success'):
         return api_response(

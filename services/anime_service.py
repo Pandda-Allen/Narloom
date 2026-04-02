@@ -38,7 +38,7 @@ class AnimeService:
     def generate_anime(self, session_id: str, user_id: str,
                        first_frame_url: str, first_frame_oss_key: str,
                        last_frame_url: Optional[str], last_frame_oss_key: Optional[str],
-                       parameters: Dict) -> Dict:
+                       parameters: Dict, work_id: str = None) -> Dict:
         """
         生成动画 - 主入口方法，根据帧模式分发到具体实现
 
@@ -50,6 +50,7 @@ class AnimeService:
             last_frame_url: 尾帧图片 URL (单帧模式为 None)
             last_frame_oss_key: 尾帧 OSS 对象键 (单帧模式为 None)
             parameters: 生成参数
+            work_id: 作品 ID (可选，用于关联作品)
             conversation_history: 对话历史服务
             video_generation_service: 视频生成服务
 
@@ -85,7 +86,8 @@ class AnimeService:
             return self._generate_start_end_frame_anime(
                 session_id=session_id,
                 payload=payload,
-                api_endpoint='/services/aigc/image2video/video-synthesis'
+                api_endpoint='/services/aigc/image2video/video-synthesis',
+                work_id=work_id
             )
         else:
             # 单帧模式 payload
@@ -105,12 +107,14 @@ class AnimeService:
             return self._generate_single_frame_anime(
                 session_id=session_id,
                 payload=payload,
-                api_endpoint='/services/aigc/video-generation/video-synthesis'
+                api_endpoint='/services/aigc/video-generation/video-synthesis',
+                work_id=work_id
             )
 
     def _generate_single_frame_anime(self, session_id: str,
                                       payload: Dict,
-                                      api_endpoint: str) -> Dict:
+                                      api_endpoint: str,
+                                      work_id: str = None) -> Dict:
         """
         为单张图片生成动画（首帧模式）
 
@@ -118,6 +122,7 @@ class AnimeService:
             session_id: 会话 ID
             payload: 完整的 API payload（包含 model, input, parameters）
             api_endpoint: API 端点路径
+            work_id: 作品 ID (可选，用于关联作品)
 
         Returns:
             Dict: 包含成功状态和结果数据
@@ -138,7 +143,8 @@ class AnimeService:
                 'panel_count': 1,
                 'total_duration': result.get('duration', payload['parameters'].get('duration', 5)),
                 'frame_mode': 'single',
-                'task_id': result.get('task_id')
+                'task_id': result.get('task_id'),
+                'work_id': work_id
             }
         else:
             return {
@@ -148,7 +154,8 @@ class AnimeService:
 
     def _generate_start_end_frame_anime(self, session_id: str,
                                          payload: Dict,
-                                         api_endpoint: str) -> Dict:
+                                         api_endpoint: str,
+                                         work_id: str = None) -> Dict:
         """
         为两张图片生成动画（首尾帧模式）
 
@@ -156,6 +163,7 @@ class AnimeService:
             session_id: 会话 ID
             payload: 完整的 API payload（包含 model, input, parameters）
             api_endpoint: API 端点路径
+            work_id: 作品 ID (可选，用于关联作品)
 
         Returns:
             Dict: 包含成功状态和结果数据
@@ -176,7 +184,8 @@ class AnimeService:
                 'panel_count': 1,
                 'total_duration': result.get('duration', payload['parameters'].get('duration', 5)),
                 'frame_mode': 'start_end',
-                'task_id': result.get('task_id')
+                'task_id': result.get('task_id'),
+                'work_id': work_id
             }
         else:
             return {
@@ -185,7 +194,8 @@ class AnimeService:
             }
 
     def generate_multi_image_anime(self, session_id: str, user_id: str,
-                                    images: List[Dict], parameters: Dict) -> Dict:
+                                    images: List[Dict], parameters: Dict,
+                                    work_id: str = None) -> Dict:
         """
         为多张图片依次生成动画，最后合并成一个视频
 
@@ -194,6 +204,7 @@ class AnimeService:
             user_id: 用户 ID
             images: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str}
             parameters: 生成参数
+            work_id: 作品 ID (可选，用于关联作品)
             conversation_history: 对话历史服务
             video_generation_service: 视频生成服务
 
@@ -316,7 +327,8 @@ class AnimeService:
                 'panel_count': len(images),
                 'total_duration': total_duration,
                 'individual_videos': video_results,
-                'frame_mode': frame_mode
+                'frame_mode': frame_mode,
+                'work_id': work_id
             }
         else:
             return {
@@ -412,12 +424,13 @@ class AnimeService:
             'turn_count': len(updated_messages)
         }
 
-    def confirm(self, user_id: str, parameters: Dict) -> Dict:
+    def confirm(self, user_id: str, work_id: str, parameters: Dict) -> Dict:
         """
         处理确认模式：用户确认保存生成的视频
 
         Args:
             user_id: 用户 ID
+            work_id: 作品 ID
             parameters: 包含视频 URL 等参数
             conversation_history: 对话历史服务
 
@@ -435,8 +448,8 @@ class AnimeService:
                 'error': 'video_url is required for confirm mode'
             }
 
-        # 1. 创建资产记录保存视频
-        mysql_row = MySQLService().insert_asset(user_id, 'comic_video', None)
+        # 1. 创建资产记录保存视频（关联 work_id）
+        mysql_row = MySQLService().insert_asset(user_id, 'comic_video', work_id)
         asset_id = mysql_row['asset_id']
 
         # 2. 生成 OSS 对象键
@@ -459,6 +472,7 @@ class AnimeService:
             'video_url': oss_result.get('oss_url'),  # OSS 永久 URL
             'source_asset_id': None,
             'oss_object_key': oss_result.get('oss_object_key'),
+            'work_id': work_id,
             'parameters': parameters,
             'created_at': datetime.now().isoformat()
         }
@@ -483,7 +497,8 @@ class AnimeService:
                 content='视频已保存到 OSS',
                 metadata={
                     'asset_id': asset_id,
-                    'oss_object_key': oss_result.get('oss_object_key')
+                    'oss_object_key': oss_result.get('oss_object_key'),
+                    'work_id': work_id
                 }
             )
 
@@ -491,7 +506,8 @@ class AnimeService:
             'success': True,
             'asset_id': asset_id,
             'video_url': oss_result.get('oss_url'),
-            'oss_object_key': oss_result.get('oss_object_key')
+            'oss_object_key': oss_result.get('oss_object_key'),
+            'work_id': work_id
         }
 
     def _generate_chat_response(self, user_message: str, messages: List[Dict], image_url: str) -> str:
