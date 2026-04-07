@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.3
-**更新日期**: 2026-03-31
+**版本**: 2.4
+**更新日期**: 2026-04-07
 **基础路径**: `/`
 
 ---
@@ -14,10 +14,11 @@
 3. [资产模块 (Asset)](#资产模块-asset)
 4. [作品模块 (Work)](#作品模块-work)
 5. [章节模块 (Chapter)](#章节模块-chapter)
-6. [AI 服务 (AI)](#ai-服务-ai)
-7. [图片服务 (Picture)](#图片服务-picture)
-8. [动画生成 (Anime)](#动画生成-anime)
-9. [数据库说明](#数据库说明)
+6. [镜头模块 (Shots)](#镜头模块-shots)
+7. [AI 服务 (AI)](#ai-服务-ai)
+8. [图片服务 (Picture)](#图片服务-picture)
+9. [动画生成 (Anime)](#动画生成-anime)
+10. [数据库说明](#数据库说明)
 
 ---
 
@@ -396,7 +397,8 @@ Authorization: Bearer <access_token>
   "genre": "类型",
   "tags": ["标签 1", "标签 2"],
   "status": "连载中",
-  "description": "作品描述"
+  "description": "作品描述",
+  "work_type": "novel"
 }
 ```
 
@@ -409,6 +411,7 @@ Authorization: Bearer <access_token>
 | `tags` | Array | 否 | 标签列表 |
 | `status` | String | 否 | 状态 (连载中/已完结) |
 | `description` | String | 否 | 作品描述 |
+| `work_type` | String | 否 | 作品类型：`novel`(小说) / `anime`(动画)，默认 `novel` |
 
 **响应**:
 ```json
@@ -770,6 +773,326 @@ Authorization: Bearer <access_token>
 
 ---
 
+## 镜头模块 (Shots)
+
+**基础路径**: `/rest/v1/shots`
+
+镜头 (Shot) 是动画作品的基本组成单位，一个 anime 类型的 work 由多个 shots 组成。
+每个 shot 包含多个 asset（anime 视频 + 上传的 picture）。
+
+### 1. 创建镜头
+
+**端点**: `POST /createShot`
+
+**请求体**:
+```json
+{
+  "work_id": "uuid",
+  "author_id": "uuid",
+  "shot_number": 1,
+  "description": "镜头描述",
+  "notes": "备注"
+}
+```
+
+**请求参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `author_id` | String | 是 | 作者 ID |
+| `shot_number` | Integer | 是 | 镜头编号 |
+| `description` | String | 否 | 镜头描述 |
+| `notes` | String | 否 | 备注 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Shot created successfully",
+  "data": {
+    "shot_id": "uuid",
+    "work_id": "uuid",
+    "author_id": "uuid",
+    "shot_number": 1,
+    "description": "镜头描述",
+    "notes": "备注",
+    "created_at": "2026-04-07T00:00:00",
+    "updated_at": "2026-04-07T00:00:00"
+  },
+  "count": 1
+}
+```
+
+---
+
+### 2. 获取镜头列表
+
+**端点**: `GET /getShotsByWorkId`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `work_id` | String | 是 | 作品 ID |
+| `limit` | Integer | 否 | 每页数量 (默认 100) |
+| `offset` | Integer | 否 | 偏移量 (默认 0) |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Shots fetched successfully",
+  "data": [
+    {
+      "shot_id": "uuid",
+      "work_id": "uuid",
+      "author_id": "uuid",
+      "shot_number": 1,
+      "description": "镜头描述",
+      "notes": "备注",
+      "created_at": "2026-04-07T00:00:00",
+      "updated_at": "2026-04-07T00:00:00"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+### 3. 为镜头生成动画（单张/多张图片）
+
+**端点**: `POST /generateAnime`
+
+**Content-Type**: `multipart/form-data` 或 `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID |
+| `shot_id` | String | 是 | 镜头 ID |
+| `session_id` | String | 否 | 会话 ID |
+| `frame_mode` | String | 否 | 帧模式：`single`(单帧) / `start_end`(首尾帧)，默认 `single` |
+| **首帧图片参数** (三选一) |
+| `asset_id` | String | 否 | 已上传图片的资产 ID |
+| `oss_object_key` | String | 否 | OSS 对象键 |
+| `picture` | File | 否 | 新图片文件 |
+| **尾帧图片参数** (`frame_mode=start_end` 时必填，三选一) |
+| `end_asset_id` | String | 否 | 尾帧图片的资产 ID |
+| `end_oss_object_key` | String | 否 | 尾帧图片的 OSS 对象键 |
+| `end_picture` | File | 否 | 尾帧图片文件 |
+| `parameters` | Object | 否 | 生成参数 |
+
+**parameters 参数说明**:
+```json
+{
+  "prompt": "用户自定义提示词",
+  "style": "anime",
+  "duration": 5,
+  "motion_strength": 0.5
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Anime generation completed",
+  "data": {
+    "session_id": "uuid",
+    "video_url": "https://example.com/video.mp4",
+    "shot_id": "uuid",
+    "asset_id": "uuid",
+    "panel_count": 1,
+    "total_duration": 5,
+    "frame_mode": "single",
+    "work_id": "work-uuid"
+  },
+  "count": 1
+}
+```
+
+**示例 - 单帧模式**:
+```json
+{
+  "user_id": "uuid",
+  "work_id": "work-uuid",
+  "shot_id": "shot-uuid",
+  "asset_id": "asset-uuid",
+  "parameters": {
+    "prompt": "流畅的动画效果",
+    "duration": 5
+  }
+}
+```
+
+**示例 - 首尾帧模式**:
+```json
+{
+  "user_id": "uuid",
+  "work_id": "work-uuid",
+  "shot_id": "shot-uuid",
+  "frame_mode": "start_end",
+  "asset_id": "start-asset-uuid",
+  "end_asset_id": "end-asset-uuid",
+  "parameters": {
+    "prompt": "从第一帧平滑过渡到最后一帧",
+    "duration": 5
+  }
+}
+```
+
+---
+
+### 4. 多张图片生成动画并合并
+
+**端点**: `POST /generateMultiImageAnime`
+
+**Content-Type**: `multipart/form-data` 或 `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID |
+| `shot_id` | String | 是 | 镜头 ID |
+| `session_id` | String | 否 | 会话 ID |
+| `pictures` | File[] | 否 | 多张图片文件 |
+| `asset_ids` | String | 否 | 资产 ID 列表 (逗号分隔) |
+| `oss_object_keys` | String | 否 | OSS 对象键列表 (逗号分隔) |
+| `parameters` | Object | 否 | 生成参数 |
+
+**parameters 参数说明**:
+```json
+{
+  "prompt": "用户自定义提示词",
+  "style": "anime",
+  "duration": 5,
+  "motion_strength": 0.5,
+  "transition": "fade",
+  "transition_duration": 0.5,
+  "frame_mode": "single"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Multi-image anime generation completed",
+  "data": {
+    "session_id": "uuid",
+    "video_url": "https://example.com/merged_video.mp4",
+    "shot_id": "uuid",
+    "asset_id": "uuid",
+    "panel_count": 5,
+    "total_duration": 25,
+    "individual_videos": [
+      {
+        "video_url": "https://example.com/video1.mp4",
+        "duration": 5
+      }
+    ],
+    "frame_mode": "single",
+    "work_id": "work-uuid"
+  },
+  "count": 5
+}
+```
+
+---
+
+### 5. 确认保存视频到镜头
+
+**端点**: `POST /confirm`
+
+**Content-Type**: `application/json`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `user_id` | String | 是 | 用户 ID |
+| `work_id` | String | 是 | 作品 ID |
+| `shot_id` | String | 是 | 镜头 ID |
+| `video_url` | String | 是 | 视频 URL (临时 URL，需保存到 OSS) |
+| `parameters` | Object | 否 | 其他参数 |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Video saved successfully",
+  "data": {
+    "asset_id": "uuid",
+    "video_url": "https://oss.example.com/permanent_video.mp4",
+    "oss_object_key": "video/user_id/asset_id.mp4",
+    "work_id": "work-uuid",
+    "shot_id": "shot-uuid"
+  },
+  "count": 1
+}
+```
+
+---
+
+### 6. 获取镜头详情
+
+**端点**: `GET /getShotDetails`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `shot_id` | String | 是 | 镜头 ID |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Shot details fetched successfully",
+  "data": {
+    "shot_id": "uuid",
+    "work_id": "uuid",
+    "shot_number": 1,
+    "description": "镜头描述",
+    "notes": "备注",
+    "asset_ids": ["asset-id-1", "asset-id-2"],
+    "video_assets": [
+      {
+        "asset_id": "uuid",
+        "video_url": "https://example.com/video.mp4",
+        "frame_mode": "single"
+      }
+    ],
+    "picture_assets": [
+      {
+        "asset_id": "uuid",
+        "oss_url": "https://example.com/picture.jpg"
+      }
+    ]
+  },
+  "count": 1
+}
+```
+
+---
+
+### 7. 健康检查
+
+**端点**: `GET /health`
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Health check completed",
+  "data": {
+    "service": "shots"
+  }
+}
+```
+
+---
+
 ## AI 服务 (AI)
 
 **基础路径**: `/rest/v1/ai`
@@ -905,11 +1228,39 @@ Authorization: Bearer <access_token>
 
 ## 动画生成 (Anime)
 
-**基础路径**: `/rest/v1/anime`
+> **注意**: 动画生成功能已迁移至 [镜头模块 (Shots)](#镜头模块-shots)。
+> `/rest/v1/anime` 路径下的接口保留用于向后兼容，建议新使用 `/rest/v1/shots` 路径下的接口。
+>
+> 主要变更：
+> - 动画现在按 `shot_id` 组织，每个镜头可以包含多个动画资产
+> - 新增 `work_type` 字段区分 `novel`(小说) 和 `anime`(动画) 作品
+> - 新增 `anime_details` MongoDB 集合记录作品的 `shots_ids` 列表
+> - 新增 `shot_details` MongoDB 集合记录每个镜头的 `video_assets` 和 `picture_assets`
+
+**基础路径**: `/rest/v1/anime` (保留，建议迁移至 `/rest/v1/shots`)
 
 ### 1. 生成动画（单张/首尾帧）
 
 **端点**: `POST /generateAnime`
+
+> 已迁移至 `POST /rest/v1/shots/generateAnime`
+> 新增必填参数：`shot_id`
+
+**基础路径**: `/rest/v1/anime` (保留，建议迁移至 `/rest/v1/shots')
+
+### 1. 生成动画（单张/首尾帧） - 已弃用
+
+**端点**: `POST /generateAnime`
+
+> **已弃用**: 请使用 `/rest/v1/shots/generateAnime`
+>
+> 主要变更：
+> - 动画现在按 `shot_id` 组织，每个镜头可以包含多个动画资产
+> - 新增 `work_type` 字段区分 `novel`(小说) 和 `anime`(动画) 作品
+> - 新增 `anime_details` MongoDB 集合记录作品的 `shots_ids` 列表
+> - 新增 `shot_details` MongoDB 集合记录每个镜头的 `video_assets` 和 `picture_assets`
+
+**基础路径**: `/rest/v1/anime`
 
 **Content-Type**: `multipart/form-data` 或 `application/json`
 
@@ -1175,8 +1526,9 @@ parameters={"prompt": "流畅过渡", "duration": 5}
 | `users` | 用户基础信息表 |
 | `token_blacklist` | JWT 令牌黑名单表 |
 | `assets` | 资产表 |
-| `works` | 作品表 |
+| `works` | 作品表（新增 `work_type` 字段） |
 | `chapters` | 章节表 |
+| `shots` | 镜头表（v2.4 新增） |
 
 ### MongoDB 数据库
 
@@ -1187,7 +1539,10 @@ parameters={"prompt": "流畅过渡", "duration": 5}
 | 集合名 | 说明 | 索引 |
 |--------|------|------|
 | `asset_data` | 资产详细数据 | `asset_id` (唯一) |
-| `work_details` | 作品详细信息 | `work_id` (唯一), 复合索引 |
+| `work_details` | 作品详细信息（已弃用） | `work_id` (唯一), 复合索引 |
+| `novel_details` | 小说作品详细信息（v2.4 新增） | `work_id` (唯一), 复合索引 |
+| `anime_details` | 动画作品详细信息（v2.4 新增） | `work_id` (唯一), 复合索引 |
+| `shot_details` | 镜头详细信息（v2.4 新增） | `shot_id` (唯一), `work_id` 索引 |
 | `conversation_history` | 对话历史 | `session_id` (唯一), `user_id`, `expires_at` |
 
 ---
@@ -1238,6 +1593,9 @@ MONGO_URI=mongodb://localhost:27017/
 MONGO_DB=narloom
 MONGO_ASSET_DATA_COLLECTION=asset_data
 MONGO_WORK_DETAILS_COLLECTION=work_details
+MONGO_NOVEL_DETAILS_COLLECTION=novel_details
+MONGO_ANIME_DETAILS_COLLECTION=anime_details
+MONGO_SHOT_DETAILS_COLLECTION=shot_details
 MONGO_CONVERSATION_COLLECTION=conversation_history
 
 # 阿里云 OSS 配置
@@ -1255,6 +1613,31 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.4 (2026-04-07)
+- **新增 Shots 模块** (`/rest/v1/shots`)
+  - 新增 `shots` MySQL 表存储镜头信息
+  - 新增 `shot_details` MongoDB 集合存储每个镜头的资产列表
+  - 镜头 (Shot) 是动画作品的基本组成单位，一个 anime 类型的 work 由多个 shots 组成
+- **新增 work_type 字段**
+  - `works` 表新增 `work_type` 字段，支持 `novel`(小说) 和 `anime`(动画)
+  - `novel` 类型作品使用 `novel_details` MongoDB 集合
+  - `anime` 类型作品使用 `anime_details` MongoDB 集合
+- **MongoDB 集合拆分**
+  - 原 `work_details` 拆分为 `novel_details` 和 `anime_details`
+  - `novel_details`: 继承原 `work_details` 功能，记录 `asset_ids` 和 `chapter_ids`
+  - `anime_details`: 记录 `shots_ids` 列表
+- **Shots 模块接口**
+  - `POST /createShot` - 创建镜头
+  - `GET /getShotsByWorkId` - 获取镜头列表
+  - `POST /generateAnime` - 为镜头生成动画
+  - `POST /generateMultiImageAnime` - 多张图片生成动画
+  - `POST /confirm` - 确认保存视频到镜头
+  - `GET /getShotDetails` - 获取镜头详情
+- **Anime 模块迁移**
+  - Anime 模块原有接口保留用于向后兼容
+  - 建议新使用 `/rest/v1/shots` 路径下的接口
+  - 新增 `shot_id` 参数支持镜头关联
 
 ### v2.3 (2026-03-31)
 - 新增 `frame_mode` 参数支持单帧/首尾帧动画生成

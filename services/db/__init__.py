@@ -5,16 +5,20 @@
 
 # MySQL Services
 from .base_service import mysql_base_service, MySQLBaseService, TABLE_WHITELIST
-from .mysql_service import mysql_service, MySQLService
-from .mongo_service import mongo_service, MongoService
+from ..mysql_service import mysql_service, MySQLService
+from ..mongo_service import mongo_service, MongoService
 from .user_service import user_service, UserService
 from .asset_service import asset_service, AssetService
 from .work_service import work_service, WorkService
 from .chapter_service import chapter_service, ChapterService
+from .shot_service import shot_service, ShotService
 
 # MongoDB Services
 from .mongo_asset_service import asset_data_service, AssetDataService
 from .mongo_work_service import work_details_service, WorkDetailsService
+from .mongo_novel_service import novel_details_service, NovelDetailsService
+from .mongo_anime_service import anime_details_service, AnimeDetailsService
+from .mongo_shot_service import shot_details_service, ShotDetailsService
 
 
 __all__ = [
@@ -32,6 +36,8 @@ __all__ = [
     'WorkService',
     'chapter_service',
     'ChapterService',
+    'shot_service',
+    'ShotService',
     # MongoDB
     'mongo_service',
     'MongoService',
@@ -39,4 +45,10 @@ __all__ = [
     'AssetDataService',
     'work_details_service',
     'WorkDetailsService',
+    'novel_details_service',
+    'NovelDetailsService',
+    'anime_details_service',
+    'AnimeDetailsService',
+    'shot_details_service',
+    'ShotDetailsService',
 ]

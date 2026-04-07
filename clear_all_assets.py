@@ -18,7 +18,7 @@ def create_app():
 
 def clear_all_assets():
     """清空所有 asset 数据和 OSS 图片"""
-    from services.db import mysql_service, MongoService, mysql_base_service
+    from services import mysql_service, MongoService, mysql_base_service
     from services.storage import oss_service
 
     print("开始清空所有资产数据...")

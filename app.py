@@ -70,7 +70,7 @@ def _setup_logging(app):
 
 def init_mysql(app):
     """初始化 MySQL 客户端"""
-    from services.db import mysql_service
+    from services import mysql_service
 
     mysql_service.init_app(app)
 
@@ -80,7 +80,7 @@ def init_mysql(app):
 
 def init_mongo(app):
     """初始化 MongoDB 客户端"""
-    from services.db import mongo_service
+    from services import mongo_service
 
     mongo_service.init_app(app)
 
@@ -138,6 +138,7 @@ def register_blueprints(app):
     from api.routes.ai import ai_bp
     from api.routes.pictures import picture_bp
     from api.routes.anime import anime_bp
+    from api.routes.shots import shots_bp
 
     app.register_blueprint(user_bp)
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
@@ -146,3 +147,4 @@ def register_blueprints(app):
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
     app.register_blueprint(picture_bp, url_prefix='/rest/v1/picture')
     app.register_blueprint(anime_bp, url_prefix='/rest/v1/anime')
+    app.register_blueprint(shots_bp, url_prefix='/rest/v1/shots')

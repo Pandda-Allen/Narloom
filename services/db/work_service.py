@@ -14,7 +14,7 @@ class WorkService:
 
     def insert_work(self, author_id: str, title: str, genre: str = '', tags=None,
                     status: str = 'draft', chapter_count: int = 0, word_count: int = 0,
-                    description: str = '') -> Dict:
+                    description: str = '', work_type: str = 'novel') -> Dict:
         """插入作品记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
@@ -28,11 +28,11 @@ class WorkService:
 
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (work_id, author_id, title, genre, tags, status, word_count, description, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO {table} (work_id, author_id, title, genre, tags, status, chapter_count, word_count, description, work_type, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (work_id, author_id, title, genre, tags, status,
-                                 word_count, description, now, now))
+                                 chapter_count, word_count, description, work_type, now, now))
             conn.commit()
 
         return {
@@ -45,6 +45,7 @@ class WorkService:
             'chapter_count': chapter_count,
             'word_count': word_count,
             'description': description,
+            'work_type': work_type,
             'created_at': now.strftime("%Y-%m-%d %H:%M:%S"),
             'updated_at': now.strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -56,7 +57,7 @@ class WorkService:
             mysql_base_service._get_config('MYSQL_TABLE_WORKS', 'works'))
         now = datetime.now()
 
-        allowed_fields = ['title', 'genre', 'tags', 'status', 'word_count', 'description']
+        allowed_fields = ['title', 'genre', 'tags', 'status', 'word_count', 'description', 'work_type']
         set_clauses = []
         params = []
 

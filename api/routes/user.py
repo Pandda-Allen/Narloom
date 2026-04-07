@@ -5,7 +5,7 @@
 from flask import Blueprint, request, g
 from utils.response_helper import api_response, error_response
 from utils.decorators import handle_errors, jwt_required
-from services.db import mysql_service, MongoService
+from services import mysql_service, MongoService
 from services.storage import oss_service
 from services.jwt_service import jwt_service
 from services.token_blacklist_service import token_blacklist_service

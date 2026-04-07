@@ -10,7 +10,7 @@ from ..base_service import BaseService
 
 # 表名白名单，防止 SQL 注入
 TABLE_WHITELIST = {
-    'users', 'assets', 'works', 'chapters',
+    'users', 'assets', 'works', 'chapters', 'shots',
     'token_blacklist'
 }
 
@@ -141,10 +141,12 @@ class MySQLBaseService(BaseService):
                         chapter_count INT DEFAULT 0,
                         word_count INT DEFAULT 0,
                         description TEXT,
+                        work_type VARCHAR(50) DEFAULT 'novel' COMMENT '作品类型：novel/anime',
                         created_at DATETIME NOT NULL,
                         updated_at DATETIME NOT NULL,
                         INDEX idx_author_id (author_id),
-                        INDEX idx_status (status)
+                        INDEX idx_status (status),
+                        INDEX idx_work_type (work_type)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
@@ -165,6 +167,23 @@ class MySQLBaseService(BaseService):
                         INDEX idx_work_id (work_id),
                         INDEX idx_author_id (author_id),
                         INDEX idx_chapter_num (work_id, chapter_num)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """)
+
+                # 创建 shots 表
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS shots (
+                        shot_id VARCHAR(100) PRIMARY KEY,
+                        work_id VARCHAR(100) NOT NULL,
+                        author_id VARCHAR(100) NOT NULL,
+                        shot_number INT NOT NULL,
+                        description TEXT,
+                        notes TEXT,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL,
+                        INDEX idx_work_id (work_id),
+                        INDEX idx_author_id (author_id),
+                        INDEX idx_shot_number (work_id, shot_number)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 

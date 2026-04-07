@@ -3,15 +3,16 @@ MySQL 服务兼容性封装模块
 为保持向后兼容，将所有服务方法聚合到 MySQLService 类中
 新代码建议直接使用 services.db 中的具体 service
 """
-from . import (
+from .db import (
     mysql_base_service,
     user_service,
     asset_service,
     work_service,
     chapter_service,
+    shot_service,
     TABLE_WHITELIST
 )
-from .base_service import MySQLBaseService
+from .db.base_service import MySQLBaseService
 
 
 class MySQLService:
@@ -111,6 +112,22 @@ class MySQLService:
 
     def delete_chapter(self, *args, **kwargs):
         return chapter_service.delete_chapter(*args, **kwargs)
+
+    # --- Shot 方法 ---
+    def insert_shot(self, *args, **kwargs):
+        return shot_service.insert_shot(*args, **kwargs)
+
+    def update_shot(self, *args, **kwargs):
+        return shot_service.update_shot(*args, **kwargs)
+
+    def fetch_shot_by_id(self, *args, **kwargs):
+        return shot_service.fetch_shot_by_id(*args, **kwargs)
+
+    def fetch_shots_by_work_id(self, *args, **kwargs):
+        return shot_service.fetch_shots_by_work_id(*args, **kwargs)
+
+    def delete_shot(self, *args, **kwargs):
+        return shot_service.delete_shot(*args, **kwargs)
 
 
 # 保持单例模式

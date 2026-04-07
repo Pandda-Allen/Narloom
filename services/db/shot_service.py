@@ -1,0 +1,129 @@
+"""
+镜头数据访问层
+负责 shots 表的 CRUD 操作
+"""
+import uuid
+from datetime import datetime
+from typing import Optional, Dict, List
+from .base_service import mysql_base_service
+
+
+class ShotService:
+    """镜头数据访问类"""
+
+    def insert_shot(self, work_id: str, author_id: str, shot_number: int,
+                    description: str = '', notes: str = '') -> Dict:
+        """插入镜头记录"""
+        conn = mysql_base_service._ensure_connection()
+        table = mysql_base_service._validate_table_name(
+            mysql_base_service._get_config('MYSQL_TABLE_SHOTS', 'shots'))
+        shot_id = str(uuid.uuid4())
+        now = datetime.now()
+
+        with conn.cursor() as cursor:
+            sql = f"""
+                INSERT INTO {table} (shot_id, work_id, author_id, shot_number, description, notes, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(sql, (shot_id, work_id, author_id, shot_number,
+                                 description, notes, now, now))
+            conn.commit()
+
+        return {
+            "shot_id": shot_id,
+            "work_id": work_id,
+            "author_id": author_id,
+            "shot_number": shot_number,
+            "description": description,
+            "notes": notes,
+            "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": now.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+    def update_shot(self, shot_id: str, update_data: Dict) -> Optional[Dict]:
+        """更新镜头记录"""
+        conn = mysql_base_service._ensure_connection()
+        table = mysql_base_service._validate_table_name(
+            mysql_base_service._get_config('MYSQL_TABLE_SHOTS', 'shots'))
+        now = datetime.now()
+
+        field_mapping = {
+            'shot_number': 'shot_number',
+            'description': 'description',
+            'notes': 'notes'
+        }
+        set_clauses = []
+        params = []
+
+        for field, db_column in field_mapping.items():
+            if field in update_data:
+                set_clauses.append(f"{db_column} = %s")
+                params.append(update_data[field])
+
+        set_clauses.append("updated_at = %s")
+        params.append(now)
+        params.append(shot_id)
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT shot_id FROM {table} WHERE shot_id = %s", (shot_id,))
+            if not cursor.fetchone():
+                return None
+            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE shot_id = %s"
+            cursor.execute(sql, params)
+            conn.commit()
+
+            cursor.execute(f"SELECT * FROM {table} WHERE shot_id = %s", (shot_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def fetch_shot_by_id(self, shot_id: str) -> Optional[Dict]:
+        """根据镜头 ID 获取镜头记录"""
+        conn = mysql_base_service._ensure_connection()
+        table = mysql_base_service._validate_table_name(
+            mysql_base_service._get_config('MYSQL_TABLE_SHOTS', 'shots'))
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"SELECT * FROM {table} WHERE shot_id = %s", (shot_id,))
+            row = cursor.fetchone()
+            if row:
+                row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return row
+
+    def fetch_shots_by_work_id(self, work_id: str, limit: int = 100,
+                               offset: int = 0) -> List[Dict]:
+        """根据作品 ID 获取镜头列表"""
+        conn = mysql_base_service._ensure_connection()
+        table = mysql_base_service._validate_table_name(
+            mysql_base_service._get_config('MYSQL_TABLE_SHOTS', 'shots'))
+        conditions = ["work_id = %s"]
+        params = [work_id]
+
+        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY shot_number ASC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        with conn.cursor() as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            if rows:
+                for row in rows:
+                    row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
+                    row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
+            return rows
+
+    def delete_shot(self, shot_id: str) -> bool:
+        """删除镜头记录"""
+        conn = mysql_base_service._ensure_connection()
+        table = mysql_base_service._validate_table_name(
+            mysql_base_service._get_config('MYSQL_TABLE_SHOTS', 'shots'))
+
+        with conn.cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table} WHERE shot_id = %s", (shot_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+
+shot_service = ShotService()

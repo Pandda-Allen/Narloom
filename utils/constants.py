@@ -171,6 +171,16 @@ class OSSConfig:
     MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
 
 
+# ==================== MongoDB 集合名称常量 ====================
+class MongoCollections:
+    """MongoDB 集合名称常量"""
+    WORK_DETAILS = 'work_details'
+    NOVEL_DETAILS = 'novel_details'
+    ANIME_DETAILS = 'anime_details'
+    ASSET_DATA = 'asset_data'
+    SHOT_DETAILS = 'shot_details'
+
+
 # ==================== 分页常量 ====================
 class Pagination:
     """分页常量"""
