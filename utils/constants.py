@@ -178,7 +178,6 @@ class MongoCollections:
     NOVEL_DETAILS = 'novel_details'
     ANIME_DETAILS = 'anime_details'
     ASSET_DATA = 'asset_data'
-    SHOT_DETAILS = 'shot_details'
 
 
 # ==================== 分页常量 ====================
@@ -278,7 +277,8 @@ class DatabaseConfig:
     TABLE_ASSETS = 'assets'
     TABLE_USERS = 'users'
     TABLE_WORKS = 'works'
-    TABLE_CHAPTERS = 'chapters'
+    TABLE_NOVELS = 'novels'
+    TABLE_ANIME = 'anime'
 
     # 字段名
     FIELD_ASSET_ID = 'asset_id'

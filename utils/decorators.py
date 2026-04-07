@@ -11,24 +11,57 @@ from utils.response_helper import error_response, api_response
 
 
 def handle_errors(f):
-    """统一异常处理装饰器"""
+    """
+    统一异常处理装饰器
+
+    功能:
+    - 捕获 ValueError 返回 400 业务错误
+    - 捕获其他异常返回 500 内部错误，记录详细日志
+    - 支持记录请求上下文信息
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
             return f(*args, **kwargs)
         except ValueError as ve:
-            # 业务验证错误，返回具体信息给客户端
-            return error_response(str(ve), 400)
-        except Exception as e:
-            # 系统错误，记录日志但不暴露内部信息
             logger = logging.getLogger(__name__)
-            logger.error(f"Internal server error in {f.__name__}: {str(e)}", exc_info=True)
+            logger.info(f"Business validation error in {f.__name__}: {str(ve)}")
+            return error_response(str(ve), 400)
+        except KeyError as ke:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Missing key in {f.__name__}: {str(ke)}")
+            return error_response(f"Missing required data: {str(ke)}", 400)
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"Internal server error in {f.__name__}: {str(e)}",
+                exc_info=True,
+                extra={
+                    'request_method': request.method,
+                    'request_path': request.path,
+                    'request_args': request.args.to_dict() if request.args else None
+                }
+            )
             return error_response("Internal server error", 500)
     return decorated
 
 
 def validate_json_request(*required_fields):
-    """验证 JSON 请求必需字段的装饰器"""
+    """
+    验证 JSON 请求必需字段的装饰器
+
+    功能:
+    - 验证请求体为有效 JSON
+    - 检查所有必需字段存在且非空
+    - 将解析后的数据存入 request.json_data
+
+    使用示例:
+        @app.route('/create', methods=['POST'])
+        @validate_json_request('user_id', 'work_id')
+        def create():
+            data = request.json_data  # 已验证的数据
+            ...
+    """
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -40,7 +73,6 @@ def validate_json_request(*required_fields):
             if missing:
                 return error_response(f"Missing required fields: {', '.join(missing)}", 400)
 
-            # 将解析后的数据存入 request 上下文，供后续使用
             request.json_data = data
             return f(*args, **kwargs)
         return decorated
@@ -48,15 +80,82 @@ def validate_json_request(*required_fields):
 
 
 def log_api_call(f):
-    """记录 API 调用的装饰器"""
+    """
+    记录 API 调用的装饰器
+
+    功能:
+    - 记录请求方法、路径、参数
+    - 记录响应状态码
+    - 可选记录请求耗时
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
+        import time
+        start_time = time.time()
         logger = logging.getLogger(__name__)
-        logger.info(f"API call: {request.method} {request.path}")
+
+        log_data = {
+            'method': request.method,
+            'path': request.path,
+            'args': request.args.to_dict() if request.args else None,
+        }
+        logger.info(f"API call started: {log_data}")
+
         result = f(*args, **kwargs)
-        logger.info(f"API response: {result[1] if isinstance(result, tuple) else 200}")
+
+        elapsed = time.time() - start_time
+        status_code = result[1] if isinstance(result, tuple) else 200
+        logger.info(f"API call completed: status={status_code}, elapsed={elapsed:.3f}s")
         return result
     return decorated
+
+
+def audit_log(action_name: str):
+    """
+    审计日志装饰器 - 用于记录关键操作
+
+    参数:
+        action_name: 操作名称 (如 'CREATE_SHOT', 'DELETE_ASSET')
+
+    功能:
+    - 记录用户 ID (从 JWT 获取)
+    - 记录操作类型和时间
+    - 记录请求参数
+
+    使用示例:
+        @shots_bp.route('/createShot', methods=['POST'])
+        @audit_log('CREATE_SHOT')
+        def create_shot():
+            ...
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            logger = logging.getLogger('audit')
+            import json
+
+            user_id = g.current_user_id if hasattr(g, 'current_user_id') else 'anonymous'
+
+            # 获取请求数据
+            try:
+                request_data = request.get_json() or request.form.to_dict()
+            except:
+                request_data = None
+
+            logger.info(
+                f"Audit: {action_name}",
+                extra={
+                    'user_id': user_id,
+                    'action': action_name,
+                    'method': request.method,
+                    'path': request.path,
+                    'request_data': json.dumps(request_data) if request_data else None
+                }
+            )
+
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 def service_initialized(service_instance):

@@ -2,7 +2,7 @@
 资源辅助函数模块
 提供常用的资源操作辅助函数，减少路由代码重复
 """
-from services.db import MySQLService, MongoService
+from db import MySQLService, MongoService
 
 
 # ========== 资源获取辅助函数 ==========
@@ -51,55 +51,34 @@ def get_full_work_by_id(work_id):
     work_details = MongoService().fetch_work_details(work_id)
     if work_details:
         work['asset_ids'] = work_details.get('asset_ids', [])
-        work['chapter_ids'] = work_details.get('chapter_ids', [])
+        work['novel_ids'] = work_details.get('novel_ids', [])
+        work['anime_ids'] = work_details.get('anime_ids', [])
     else:
         work['asset_ids'] = []
-        work['chapter_ids'] = []
+        work['novel_ids'] = []
+        work['anime_ids'] = []
 
     return work
 
 
-def get_full_chapter_by_id(chapter_id):
+def get_full_novel_by_id(novel_id):
     """
-    获取完整的章节信息
+    获取完整的小说章节信息
 
     Args:
-        chapter_id: 章节 ID
+        novel_id: 章节 ID
 
     Returns:
         dict: 完整的章节信息，如果不存在则返回 None
     """
-    return MySQLService().fetch_chapter_by_id(chapter_id)
+    return MySQLService().fetch_novel_by_id(novel_id)
 
 
 # ========== 数据构建辅助函数 ==========
 
 def build_novel_data(data):
     """
-    从请求数据构建小说数据
-
-    Args:
-        data: 请求数据 dict
-
-    Returns:
-        dict: 过滤后的小说数据，只包含有效字段
-    """
-    novel_data = {
-        'author_id': data.get('author_id'),
-        'title': data.get('title'),
-        'genre': data.get('genre', ''),
-        'tags': data.get('tags', []),
-        'status': data.get('status', 'draft'),
-        'chapter_count': data.get('chapter_count', 0),
-        'word_count': data.get('word_count', 0),
-        'description': data.get('description', ''),
-    }
-    return {k: v for k, v in novel_data.items() if v is not None}
-
-
-def build_chapter_data(data):
-    """
-    从请求数据构建章节数据
+    从请求数据构建小说章节数据
 
     Args:
         data: 请求数据 dict
@@ -110,8 +89,8 @@ def build_chapter_data(data):
     return {
         'work_id': data.get('work_id'),
         'author_id': data.get('author_id'),
-        'chapter_number': data.get('chapter_number'),
-        'chapter_title': data.get('chapter_title', ''),
+        'novel_number': data.get('novel_number'),
+        'novel_title': data.get('novel_title', ''),
         'content': data.get('content', ''),
         'status': data.get('status', 'draft'),
         'word_count': data.get('word_count', 0),
@@ -162,7 +141,7 @@ def check_resource_exists(resource_id, resource_type='asset'):
 
     Args:
         resource_id: 资源 ID
-        resource_type: 资源类型 (asset, work, chapter)
+        resource_type: 资源类型 (asset, work, novel, anime)
 
     Returns:
         bool: 资源是否存在
@@ -171,8 +150,10 @@ def check_resource_exists(resource_id, resource_type='asset'):
         return MySQLService().fetch_asset_by_id(resource_id) is not None
     elif resource_type == 'work':
         return MySQLService().fetch_work_by_id(resource_id) is not None
-    elif resource_type == 'chapter':
-        return MySQLService().fetch_chapter_by_id(resource_id) is not None
+    elif resource_type == 'novel':
+        return MySQLService().fetch_novel_by_id(resource_id) is not None
+    elif resource_type == 'anime':
+        return MySQLService().fetch_anime_by_id(resource_id) is not None
     return False
 
 
@@ -225,32 +206,32 @@ def delete_work_cascade(work_id):
     return deleted
 
 
-def delete_chapter_cascade(chapter_id):
+def delete_novel_cascade(novel_id):
     """
-    级联删除章节（MySQL + MongoDB work_details 更新）
+    级联删除小说章节（MySQL + MongoDB work_details 更新）
 
     Args:
-        chapter_id: 章节 ID
+        novel_id: 章节 ID
 
     Returns:
         tuple: (deleted, work_id) 删除是否成功和所属作品 ID
     """
     logger = __import__('logging').getLogger(__name__)
 
-    chapter = MySQLService().fetch_chapter_by_id(chapter_id)
-    if not chapter:
+    novel = MySQLService().fetch_novel_by_id(novel_id)
+    if not novel:
         return False, None
 
-    work_id = chapter['work_id']
+    work_id = novel['work_id']
 
     # 删除 MySQL 中的章节
-    deleted = MySQLService().delete_chapter(chapter_id)
+    deleted = MySQLService().delete_novel(novel_id)
 
     if deleted:
-        # 从 MongoDB work_details 中移除 chapter_id
+        # 从 MongoDB work_details 中移除 novel_id
         try:
-            MongoService().remove_chapter_from_work(work_id, chapter_id)
+            MongoService().remove_chapter_from_work(work_id, novel_id)
         except Exception as e:
-            logger.error(f"Error updating work details after chapter deletion: {str(e)}")
+            logger.error(f"Error updating work details after novel deletion: {str(e)}")
 
     return deleted, work_id

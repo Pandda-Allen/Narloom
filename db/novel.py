@@ -1,6 +1,6 @@
 """
-章节数据访问层
-负责 chapters 表的 CRUD 操作
+Novel 数据访问层
+负责 novels 表的 CRUD 操作（原 chapters 表）
 """
 import uuid
 from datetime import datetime
@@ -8,36 +8,36 @@ from typing import Optional, Dict, List
 from .base_service import mysql_base_service
 
 
-class ChapterService:
-    """章节数据访问类"""
+class NovelService:
+    """Novel 数据访问类（原 ChapterService）"""
 
-    def insert_chapter(self, work_id: str, author_id: str, chapter_number: int,
-                       chapter_title: str = '', content: str = '', status: str = 'draft',
-                       word_count: int = 0, description: str = '') -> Dict:
-        """插入章节记录"""
+    def insert_novel(self, work_id: str, author_id: str, novel_number: int,
+                     novel_title: str = '', content: str = '', status: str = 'draft',
+                     word_count: int = 0, description: str = '') -> Dict:
+        """插入小说章节记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
-            mysql_base_service._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
-        chapter_id = str(uuid.uuid4())
+            mysql_base_service._get_config('MYSQL_TABLE_NOVELS', 'novels'))
+        novel_id = str(uuid.uuid4())
         now = datetime.now()
 
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (chapter_id, work_id, author_id, chapter_num, chapter_title, content, status, word_count, notes, created_at, updated_at)
+                INSERT INTO {table} (novel_id, work_id, author_id, novel_number, novel_title, content, status, word_count, notes, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (chapter_id, work_id, author_id, chapter_number,
-                                 chapter_title, content, status,
+            cursor.execute(sql, (novel_id, work_id, author_id, novel_number,
+                                 novel_title, content, status,
                                  word_count, description,
                                  now, now))
             conn.commit()
 
         return {
-            "chapter_id": chapter_id,
+            "novel_id": novel_id,
             "work_id": work_id,
             "author_id": author_id,
-            "chapter_number": chapter_number,
-            "chapter_title": chapter_title,
+            "novel_number": novel_number,
+            "novel_title": novel_title,
             "content": content,
             "status": status,
             "word_count": word_count,
@@ -46,16 +46,16 @@ class ChapterService:
             "updated_at": now.strftime("%Y-%m-%d %H:%M:%S")
         }
 
-    def update_chapter(self, chapter_id: str, update_data: Dict) -> Optional[Dict]:
-        """更新章节记录"""
+    def update_novel(self, novel_id: str, update_data: Dict) -> Optional[Dict]:
+        """更新小说章节记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
-            mysql_base_service._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
+            mysql_base_service._get_config('MYSQL_TABLE_NOVELS', 'novels'))
         now = datetime.now()
 
         field_mapping = {
-            'chapter_number': 'chapter_num',
-            'chapter_title': 'chapter_title',
+            'novel_number': 'novel_number',
+            'novel_title': 'novel_title',
             'content': 'content',
             'status': 'status',
             'word_count': 'word_count',
@@ -71,48 +71,47 @@ class ChapterService:
 
         set_clauses.append("updated_at = %s")
         params.append(now)
-        params.append(chapter_id)
+        params.append(novel_id)
 
         with conn.cursor() as cursor:
-            cursor.execute(f"SELECT chapter_id FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            cursor.execute(f"SELECT novel_id FROM {table} WHERE novel_id = %s", (novel_id,))
             if not cursor.fetchone():
                 return None
-            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE chapter_id = %s"
+            sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE novel_id = %s"
             cursor.execute(sql, params)
             conn.commit()
 
-            cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE novel_id = %s", (novel_id,))
             row = cursor.fetchone()
             if row:
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
 
-    def fetch_chapter_by_id(self, chapter_id: str) -> Optional[Dict]:
-        """根据章节 ID 获取章节记录"""
+    def fetch_novel_by_id(self, novel_id: str) -> Optional[Dict]:
+        """根据小说章节 ID 获取记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
-            mysql_base_service._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
+            mysql_base_service._get_config('MYSQL_TABLE_NOVELS', 'novels'))
 
         with conn.cursor() as cursor:
-            cursor.execute(f"SELECT * FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE novel_id = %s", (novel_id,))
             row = cursor.fetchone()
             if row:
-                # 字段名转换：chapter_num -> chapter_number, notes -> description
-                if 'chapter_num' in row:
-                    row['chapter_number'] = row.pop('chapter_num')
+                if 'novel_number' in row:
+                    row['novel_number'] = row['novel_number']
                 if 'notes' in row:
                     row['description'] = row.pop('notes')
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
 
-    def fetch_chapters_by_work_id(self, work_id: str, status: Optional[str] = None,
-                                  limit: int = 100, offset: int = 0) -> List[Dict]:
-        """根据作品 ID 获取章节列表"""
+    def fetch_novels_by_work_id(self, work_id: str, status: Optional[str] = None,
+                                 limit: int = 100, offset: int = 0) -> List[Dict]:
+        """根据作品 ID 获取小说章节列表"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
-            mysql_base_service._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
+            mysql_base_service._get_config('MYSQL_TABLE_NOVELS', 'novels'))
         conditions = ["work_id = %s"]
         params = [work_id]
 
@@ -120,7 +119,7 @@ class ChapterService:
             conditions.append("status = %s")
             params.append(status)
 
-        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY chapter_num ASC LIMIT %s OFFSET %s"
+        sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY novel_number ASC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         with conn.cursor() as cursor:
@@ -128,25 +127,22 @@ class ChapterService:
             rows = cursor.fetchall()
             if rows:
                 for row in rows:
-                    # 字段名转换
-                    if 'chapter_num' in row:
-                        row['chapter_number'] = row.pop('chapter_num')
                     if 'notes' in row:
                         row['description'] = row.pop('notes')
                     row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                     row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return rows
 
-    def delete_chapter(self, chapter_id: str) -> bool:
-        """删除章节记录"""
+    def delete_novel(self, novel_id: str) -> bool:
+        """删除小说章节记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
-            mysql_base_service._get_config('MYSQL_TABLE_CHAPTERS', 'chapters'))
+            mysql_base_service._get_config('MYSQL_TABLE_NOVELS', 'novels'))
 
         with conn.cursor() as cursor:
-            cursor.execute(f"DELETE FROM {table} WHERE chapter_id = %s", (chapter_id,))
+            cursor.execute(f"DELETE FROM {table} WHERE novel_id = %s", (novel_id,))
             conn.commit()
             return cursor.rowcount > 0
 
 
-chapter_service = ChapterService()
+novel_service = NovelService()

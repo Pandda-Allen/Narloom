@@ -1,6 +1,7 @@
 """
-Anime Service 模块
-提供漫画图片动画生成等功能
+Anime Generation Service 模块
+提供漫画图片动画生成等业务逻辑服务
+职责：纯粹的视频生成逻辑，不直接处理数据库存储等副作用
 """
 import logging
 from typing import List, Dict, Optional
@@ -9,8 +10,15 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-class AnimeService:
-    """Anime 服务类，提供漫画动画生成相关功能"""
+class AnimeGenerationService:
+    """
+    Anime Generation 服务类 - 纯粹的视频生成业务逻辑
+
+    职责边界:
+    - 负责调用 video_generation_service 进行视频生成
+    - 不直接处理数据库存储、asset 关联等业务逻辑
+    - 通过 db 层服务进行数据持久化
+    """
 
     def __init__(self):
         self._video_generation_service = None
@@ -24,7 +32,7 @@ class AnimeService:
     @property
     def video_generation_service(self):
         if self._video_generation_service is None:
-            from services.video_generation_service import video_generation_service
+            from services import video_generation_service
             self._video_generation_service = video_generation_service
         return self._video_generation_service
 
@@ -53,8 +61,6 @@ class AnimeService:
             parameters: 生成参数
             work_id: 作品 ID (可选，用于关联作品)
             shot_id: 镜头 ID (可选，用于关联镜头)
-            conversation_history: 对话历史服务
-            video_generation_service: 视频生成服务
 
         Returns:
             Dict: 包含成功状态和结果数据
@@ -125,15 +131,14 @@ class AnimeService:
 
         Args:
             session_id: 会话 ID
-            payload: 完整的 API payload（包含 model, input, parameters）
+            payload: 完整的 API payload
             api_endpoint: API 端点路径
-            work_id: 作品 ID (可选，用于关联作品)
-            shot_id: 镜头 ID (可选，用于关联镜头)
+            work_id: 作品 ID (可选，原样返回)
+            shot_id: 镜头 ID (可选，原样返回)
 
         Returns:
-            Dict: 包含成功状态和结果数据
+            Dict: 包含成功状态和视频信息
         """
-        # 调用视频生成 API
         result = self.video_generation_service.call_video_api(
             payload=payload,
             api_endpoint=api_endpoint,
@@ -153,11 +158,10 @@ class AnimeService:
                 'work_id': work_id,
                 'shot_id': shot_id
             }
-        else:
-            return {
-                'success': False,
-                'error': f"Animation generation failed: {result.get('error')}"
-            }
+        return {
+            'success': False,
+            'error': f"Animation generation failed: {result.get('error')}"
+        }
 
     def _generate_start_end_frame_anime(self, session_id: str,
                                          payload: Dict,
@@ -169,15 +173,14 @@ class AnimeService:
 
         Args:
             session_id: 会话 ID
-            payload: 完整的 API payload（包含 model, input, parameters）
+            payload: 完整的 API payload
             api_endpoint: API 端点路径
-            work_id: 作品 ID (可选，用于关联作品)
-            shot_id: 镜头 ID (可选，用于关联镜头)
+            work_id: 作品 ID (可选，原样返回)
+            shot_id: 镜头 ID (可选，原样返回)
 
         Returns:
-            Dict: 包含成功状态和结果数据
+            Dict: 包含成功状态和视频信息
         """
-        # 调用视频生成 API
         result = self.video_generation_service.call_video_api(
             payload=payload,
             api_endpoint=api_endpoint,
@@ -197,11 +200,10 @@ class AnimeService:
                 'work_id': work_id,
                 'shot_id': shot_id
             }
-        else:
-            return {
-                'success': False,
-                'error': f"Animation generation failed: {result.get('error')}"
-            }
+        return {
+            'success': False,
+            'error': f"Animation generation failed: {result.get('error')}"
+        }
 
     def generate_multi_image_anime(self, session_id: str, user_id: str,
                                     images: List[Dict], parameters: Dict,
@@ -215,33 +217,23 @@ class AnimeService:
             user_id: 用户 ID
             images: 图片列表，每个元素包含 {'picture_url': str, 'oss_object_key': str}
             parameters: 生成参数
-            work_id: 作品 ID (可选，用于关联作品)
-            shot_id: 镜头 ID (可选，用于关联镜头)
-            conversation_history: 对话历史服务
-            video_generation_service: 视频生成服务
+            work_id: 作品 ID (可选，原样返回)
+            shot_id: 镜头 ID (可选，原样返回)
 
         Returns:
             Dict: 包含成功状态和结果数据
         """
         if not images or len(images) == 0:
-            return {
-                'success': False,
-                'error': 'At least one image is required'
-            }
+            return {'success': False, 'error': 'At least one image is required'}
 
-        # 获取模型配置
         model_config = self.video_generation_service.get_current_model_config()
         video_model = model_config["video_model"]
 
-        # 组装公共生成参数
         user_prompt = parameters.get('prompt', '')
         style = parameters.get('style', 'anime')
         prompt = f"漫画图片，{style}风格，自然流畅的动画效果，{user_prompt}"
-
-        # 获取帧模式参数：single(单帧) / start_end(首尾帧)
         frame_mode = parameters.get('frame_mode', 'single')
 
-        # 为每张图片依次生成动画
         video_results = []
         total_duration = 0
 
@@ -251,12 +243,9 @@ class AnimeService:
 
             logger.info(f"Generating animation for image {i+1}/{len(images)}: {oss_object_key}")
 
-            # 根据帧模式组装 payload
             if frame_mode == 'start_end' and i < len(images) - 1:
-                # 首尾帧模式：使用当前图片和下一张图片作为首尾帧
                 next_image = images[i + 1]
                 end_image_url = next_image.get('picture_url')
-
                 logger.info(f"Using start_end frame mode: {picture_url} -> {end_image_url}")
 
                 payload = {
@@ -274,7 +263,6 @@ class AnimeService:
                 }
                 api_endpoint = '/services/aigc/image2video/video-synthesis'
             else:
-                # 单帧模式
                 payload = {
                     "model": video_model,
                     "input": {
@@ -289,7 +277,6 @@ class AnimeService:
                 }
                 api_endpoint = '/services/aigc/video-generation/video-synthesis'
 
-            # 调用视频生成 API
             result = self.video_generation_service.call_video_api(
                 payload=payload,
                 api_endpoint=api_endpoint,
@@ -309,7 +296,6 @@ class AnimeService:
                     'total_count': len(images)
                 }
 
-        # 所有图片都生成成功，合并视频
         logger.info(f"All {len(images)} animations generated, merging videos...")
 
         merge_result = self.video_generation_service.merge_videos(
@@ -319,7 +305,6 @@ class AnimeService:
         )
 
         if merge_result.get('success'):
-            # 记录到对话历史（合并操作不直接调用大模型 API，所以这里存储合并结果）
             self.conversation_history.add_message(
                 session_id=session_id,
                 role='assistant',
@@ -343,11 +328,10 @@ class AnimeService:
                 'work_id': work_id,
                 'shot_id': shot_id
             }
-        else:
-            return {
-                'success': False,
-                'error': f"Failed to merge videos: {merge_result.get('error')}"
-            }
+        return {
+            'success': False,
+            'error': f"Failed to merge videos: {merge_result.get('error')}"
+        }
 
     def chat(self, session_id: str, user_id: str, picture_url: str, oss_object_key: str,
              user_message: str) -> Dict:
@@ -445,46 +429,30 @@ class AnimeService:
         Args:
             user_id: 用户 ID
             work_id: 作品 ID
-            shot_id: 镜头 ID (可选，用于关联镜头)
+            shot_id: 镜头 ID (可选)
             parameters: 包含视频 URL 等参数
-            conversation_history: 对话历史服务
 
         Returns:
-            Dict: 包含成功状态和结果数据的字典
+            Dict: 包含成功状态和结果数据
         """
-        from services.db import MySQLService, MongoService
-        from services.storage import oss_service
+        from db import MySQLService, MongoService, oss_service
 
         video_url = parameters.get('video_url')
-
         if not video_url:
-            return {
-                'success': False,
-                'error': 'video_url is required for confirm mode'
-            }
+            return {'success': False, 'error': 'video_url is required for confirm mode'}
 
-        # 1. 创建资产记录保存视频（关联 work_id）
         mysql_row = MySQLService().insert_asset(user_id, 'comic_video', work_id)
         asset_id = mysql_row['asset_id']
-
-        # 2. 生成 OSS 对象键
         oss_object_key = oss_service.generate_video_object_key(user_id, asset_id)
-
-        # 3. 将视频从临时 URL 保存到 OSS（永久存储）
         oss_result = oss_service.save_video_from_url(video_url, oss_object_key)
 
         if not oss_result.get('success'):
-            # OSS 保存失败，删除刚创建的资产记录
             MySQLService().delete_asset(asset_id)
-            return {
-                'success': False,
-                'error': oss_result.get('error')
-            }
+            return {'success': False, 'error': oss_result.get('error')}
 
-        # 3. 保存视频信息到 MongoDB（使用 OSS 永久 URL）
         video_asset_data = {
             'type': 'comic_video',
-            'video_url': oss_result.get('oss_url'),  # OSS 永久 URL
+            'video_url': oss_result.get('oss_url'),
             'source_asset_id': None,
             'oss_object_key': oss_result.get('oss_object_key'),
             'work_id': work_id,
@@ -497,15 +465,10 @@ class AnimeService:
             MongoService().insert_asset_data(asset_id, video_asset_data)
         except Exception as e:
             logger.error(f"Error saving video asset data: {e}")
-            # 回滚：删除 OSS 中的视频和资产记录
             oss_service.delete_video(oss_result.get('oss_object_key'))
             MySQLService().delete_asset(asset_id)
-            return {
-                'success': False,
-                'error': 'Failed to save video'
-            }
+            return {'success': False, 'error': 'Failed to save video'}
 
-        # 4. 更新会话历史（记录保存操作）
         if self.conversation_history:
             self.conversation_history.add_message(
                 session_id=parameters.get('session_id', 'default'),
@@ -581,4 +544,4 @@ class AnimeService:
 
 
 # 全局实例
-anime_service = AnimeService()
+anime_generation_service = AnimeGenerationService()

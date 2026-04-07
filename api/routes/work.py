@@ -14,7 +14,7 @@ from utils.resource_helper import (
     parse_pagination_args,
     delete_work_cascade
 )
-from services.db import MySQLService, MongoService
+from db import MySQLService, MongoService
 import logging
 
 work_bp = Blueprint('work', __name__)

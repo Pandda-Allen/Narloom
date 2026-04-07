@@ -6,11 +6,11 @@ import threading
 from typing import Dict, Optional, Any
 import pymysql
 import pymysql.cursors
-from ..base_service import BaseService
+from services.base_service import BaseService
 
 # 表名白名单，防止 SQL 注入
 TABLE_WHITELIST = {
-    'users', 'assets', 'works', 'chapters', 'shots',
+    'users', 'assets', 'works', 'novels', 'anime',
     'token_blacklist'
 }
 
@@ -150,14 +150,14 @@ class MySQLBaseService(BaseService):
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
-                # 创建 chapters 表
+                # 创建 novels 表（原 chapters）
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS chapters (
-                        chapter_id VARCHAR(100) PRIMARY KEY,
+                    CREATE TABLE IF NOT EXISTS novels (
+                        novel_id VARCHAR(100) PRIMARY KEY,
                         work_id VARCHAR(100) NOT NULL,
                         author_id VARCHAR(100) NOT NULL,
-                        chapter_num INT NOT NULL,
-                        chapter_title VARCHAR(255) DEFAULT '',
+                        novel_number INT NOT NULL,
+                        novel_title VARCHAR(255) DEFAULT '',
                         content TEXT,
                         status VARCHAR(50) DEFAULT 'draft',
                         word_count INT DEFAULT 0,
@@ -166,24 +166,24 @@ class MySQLBaseService(BaseService):
                         updated_at DATETIME NOT NULL,
                         INDEX idx_work_id (work_id),
                         INDEX idx_author_id (author_id),
-                        INDEX idx_chapter_num (work_id, chapter_num)
+                        INDEX idx_novel_number (work_id, novel_number)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 
-                # 创建 shots 表
+                # 创建 anime 表（原 shots）
                 cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS shots (
-                        shot_id VARCHAR(100) PRIMARY KEY,
+                    CREATE TABLE IF NOT EXISTS anime (
+                        anime_id VARCHAR(100) PRIMARY KEY,
                         work_id VARCHAR(100) NOT NULL,
                         author_id VARCHAR(100) NOT NULL,
-                        shot_number INT NOT NULL,
+                        anime_number INT NOT NULL,
                         description TEXT,
                         notes TEXT,
                         created_at DATETIME NOT NULL,
                         updated_at DATETIME NOT NULL,
                         INDEX idx_work_id (work_id),
                         INDEX idx_author_id (author_id),
-                        INDEX idx_shot_number (work_id, shot_number)
+                        INDEX idx_anime_number (work_id, anime_number)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
                 """)
 

@@ -70,7 +70,7 @@ def _setup_logging(app):
 
 def init_mysql(app):
     """初始化 MySQL 客户端"""
-    from services import mysql_service
+    from services.mysql_service import mysql_service
 
     mysql_service.init_app(app)
 
@@ -80,7 +80,7 @@ def init_mysql(app):
 
 def init_mongo(app):
     """初始化 MongoDB 客户端"""
-    from services import mongo_service
+    from services.mongo_service import mongo_service
 
     mongo_service.init_app(app)
 
@@ -106,23 +106,23 @@ def init_conversation_history(app):
     app.logger.info("Conversation history service initialized.")
 
 def init_anime_service(app):
-    """初始化 Anime Service（动画生成）"""
-    from services.anime_service import anime_service
+    """初始化 Anime Generation Service（动画生成业务逻辑）"""
+    from services import anime_service
     # AnimeService 不需要特殊初始化，这里预留扩展位置
 
 def init_video_generation_service(app):
     """初始化视频生成服务"""
-    from services.video_generation_service import video_generation_service
+    from services.video_generation_service import VideoGenerationService
 
-    video_generation_service.init_app(app)
+    VideoGenerationService().init_app(app)
 
     # 触发初始化
-    if not video_generation_service._initialized:
+    if not VideoGenerationService()._initialized:
         app.logger.error("Failed to initialize video generation service.")
 
 def init_oss_service(app):
     """初始化 OSS Service（统一对象存储接口，包含 Picture 和 Video 服务）"""
-    from services.storage import oss_service
+    from db import oss_service
 
     oss_service.init_app(app)
 
@@ -133,18 +133,16 @@ def init_oss_service(app):
 def register_blueprints(app):
     from api.routes.user import user_bp
     from api.routes.work import work_bp
-    from api.routes.chapter import chapter_bp
+    from api.routes.novel import novel_bp
     from api.routes.asset import asset_bp
     from api.routes.ai import ai_bp
     from api.routes.pictures import picture_bp
     from api.routes.anime import anime_bp
-    from api.routes.shots import shots_bp
 
     app.register_blueprint(user_bp)
     app.register_blueprint(asset_bp, url_prefix='/rest/v1/asset')
     app.register_blueprint(work_bp, url_prefix='/rest/v1/work')
-    app.register_blueprint(chapter_bp, url_prefix='/rest/v1/chapter')
+    app.register_blueprint(novel_bp, url_prefix='/rest/v1/novel')
     app.register_blueprint(ai_bp, url_prefix='/rest/v1/ai')
     app.register_blueprint(picture_bp, url_prefix='/rest/v1/picture')
     app.register_blueprint(anime_bp, url_prefix='/rest/v1/anime')
-    app.register_blueprint(shots_bp, url_prefix='/rest/v1/shots')

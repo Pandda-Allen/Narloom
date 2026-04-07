@@ -5,7 +5,7 @@
 import os
 import oss2
 from typing import Optional, Dict, List, BinaryIO
-from ..base_service import BaseService
+from services.base_service import BaseService
 
 
 class PictureService(BaseService):

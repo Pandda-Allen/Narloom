@@ -1,18 +1,14 @@
 """
 MySQL 服务兼容性封装模块
 为保持向后兼容，将所有服务方法聚合到 MySQLService 类中
-新代码建议直接使用 services.db 中的具体 service
+新代码建议直接使用 db 中的具体 service
 """
-from .db import (
-    mysql_base_service,
-    user_service,
-    asset_service,
-    work_service,
-    chapter_service,
-    shot_service,
-    TABLE_WHITELIST
-)
-from .db.base_service import MySQLBaseService
+from db.base_service import mysql_base_service, MySQLBaseService, TABLE_WHITELIST
+from db.user import user_service, UserService
+from db.asset import asset_service, AssetService
+from db.work import work_service, WorkService
+from db.novel import novel_service, NovelService
+from db.anime import anime_service, AnimeService
 
 
 class MySQLService:
@@ -97,37 +93,37 @@ class MySQLService:
     def delete_work(self, *args, **kwargs):
         return work_service.delete_work(*args, **kwargs)
 
-    # --- Chapter 方法 ---
-    def insert_chapter(self, *args, **kwargs):
-        return chapter_service.insert_chapter(*args, **kwargs)
+    # --- Novel 方法 ---
+    def insert_novel(self, *args, **kwargs):
+        return novel_service.insert_novel(*args, **kwargs)
 
-    def update_chapter(self, *args, **kwargs):
-        return chapter_service.update_chapter(*args, **kwargs)
+    def update_novel(self, *args, **kwargs):
+        return novel_service.update_novel(*args, **kwargs)
 
-    def fetch_chapter_by_id(self, *args, **kwargs):
-        return chapter_service.fetch_chapter_by_id(*args, **kwargs)
+    def fetch_novel_by_id(self, *args, **kwargs):
+        return novel_service.fetch_novel_by_id(*args, **kwargs)
 
-    def fetch_chapters_by_work_id(self, *args, **kwargs):
-        return chapter_service.fetch_chapters_by_work_id(*args, **kwargs)
+    def fetch_novels_by_work_id(self, *args, **kwargs):
+        return novel_service.fetch_novels_by_work_id(*args, **kwargs)
 
-    def delete_chapter(self, *args, **kwargs):
-        return chapter_service.delete_chapter(*args, **kwargs)
+    def delete_novel(self, *args, **kwargs):
+        return novel_service.delete_novel(*args, **kwargs)
 
-    # --- Shot 方法 ---
-    def insert_shot(self, *args, **kwargs):
-        return shot_service.insert_shot(*args, **kwargs)
+    # --- Anime 方法 ---
+    def insert_anime(self, *args, **kwargs):
+        return anime_service.insert_anime(*args, **kwargs)
 
-    def update_shot(self, *args, **kwargs):
-        return shot_service.update_shot(*args, **kwargs)
+    def update_anime(self, *args, **kwargs):
+        return anime_service.update_anime(*args, **kwargs)
 
-    def fetch_shot_by_id(self, *args, **kwargs):
-        return shot_service.fetch_shot_by_id(*args, **kwargs)
+    def fetch_anime_by_id(self, *args, **kwargs):
+        return anime_service.fetch_anime_by_id(*args, **kwargs)
 
-    def fetch_shots_by_work_id(self, *args, **kwargs):
-        return shot_service.fetch_shots_by_work_id(*args, **kwargs)
+    def fetch_animes_by_work_id(self, *args, **kwargs):
+        return anime_service.fetch_animes_by_work_id(*args, **kwargs)
 
-    def delete_shot(self, *args, **kwargs):
-        return shot_service.delete_shot(*args, **kwargs)
+    def delete_anime(self, *args, **kwargs):
+        return anime_service.delete_anime(*args, **kwargs)
 
 
 # 保持单例模式

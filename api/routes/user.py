@@ -5,8 +5,7 @@
 from flask import Blueprint, request, g
 from utils.response_helper import api_response, error_response
 from utils.decorators import handle_errors, jwt_required
-from services import mysql_service, MongoService
-from services.storage import oss_service
+from db import mysql_service, mongo_service, oss_service
 from services.jwt_service import jwt_service
 from services.token_blacklist_service import token_blacklist_service
 import logging
@@ -320,7 +319,7 @@ def delete_user(user_id: str):
     for asset in user_assets:
         asset_id = asset['asset_id']
         asset_type = asset['asset_type']
-        asset_data = MongoService().fetch_asset_data(asset_id)
+        asset_data = mongo_service.fetch_asset_data(asset_id)
 
         # 如果是 comic 类型，删除 OSS 中的图片
         if asset_type == 'comic' and asset_data:
@@ -334,7 +333,7 @@ def delete_user(user_id: str):
 
         # 删除 MongoDB 中的 asset_data
         try:
-            MongoService().delete_asset_data(asset_id)
+            mongo_service.delete_asset_data(asset_id)
             deleted_assets_count += 1
         except Exception as e:
             logger.error(f"Error deleting asset data {asset_id}: {e}")
@@ -357,18 +356,18 @@ def delete_user(user_id: str):
         work_id = work['work_id']
 
         # 获取作品的所有章节
-        chapters = mysql_service.fetch_chapters_by_work_id(work_id, limit=1000, offset=0)
+        novels = mysql_service.fetch_novels_by_work_id(work_id, limit=1000, offset=0)
 
         # 删除章节
-        for chapter in chapters:
+        for novel in novels:
             try:
-                mysql_service.delete_chapter(chapter['chapter_id'])
+                mysql_service.delete_novel(novel['novel_id'])
             except Exception as e:
-                logger.error(f"Error deleting chapter {chapter['chapter_id']}: {e}")
+                logger.error(f"Error deleting novel {novel['novel_id']}: {e}")
 
         # 删除 MongoDB 中的 work_details
         try:
-            MongoService().delete_work_details(work_id)
+            mongo_service.delete_work_details(work_id)
         except Exception as e:
             logger.warning(f"Error deleting work details {work_id}: {e}")
 

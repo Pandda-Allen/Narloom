@@ -7,7 +7,7 @@ from typing import Optional, List
 import logging
 
 from .base_service import BaseService
-from services.db import MySQLService
+from db import MySQLService
 
 logger = logging.getLogger(__name__)
 

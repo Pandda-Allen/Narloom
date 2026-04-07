@@ -7,7 +7,7 @@ from typing import Optional, Dict, List
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
-from ..base_service import BaseService
+from services.base_service import BaseService
 
 
 class WorkDetailsService(BaseService):

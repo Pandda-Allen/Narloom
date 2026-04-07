@@ -11,8 +11,7 @@ from utils.constants import (
     AssetType, AssetDataType, RequestParams, ResponseMessage,
     Defaults, FileTypes, Pagination
 )
-from services.storage import oss_service
-from services.db import MySQLService, MongoService
+from db import MySQLService, MongoService, oss_service
 import logging
 from datetime import datetime
 

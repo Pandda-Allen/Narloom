@@ -8,9 +8,9 @@
 - video_service: 具体执行视频相关的 OSS 操作
 """
 
-from .oss_service import oss_service, OSSService
-from .picture_service import picture_service, PictureService
-from .video_service import video_service, VideoService
+from .oss import oss_service, OSSService
+from .picture import picture_service, PictureService
+from .video import video_service, VideoService
 
 __all__ = [
     # OSS Service (统一接口)

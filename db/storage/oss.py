@@ -40,8 +40,8 @@ class OSSService:
         if self._initialized:
             return
 
-        from .picture_service import picture_service
-        from .video_service import video_service
+        from .picture import picture_service
+        from .video import video_service
 
         self._picture_service = picture_service
         self._video_service = video_service

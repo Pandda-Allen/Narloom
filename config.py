@@ -89,7 +89,8 @@ class Config:
     MYSQL_DB = os.getenv('MYSQL_DB', 'narloom')
     MYSQL_TABLE_ASSETS = os.getenv('MYSQL_TABLE_ASSETS', 'assets')
     MYSQL_TABLE_WORKS = os.getenv('MYSQL_TABLE_WORKS', 'works')
-    MYSQL_TABLE_CHAPTERS = os.getenv('MYSQL_TABLE_CHAPTERS', 'chapters')
+    MYSQL_TABLE_NOVELS = os.getenv('MYSQL_TABLE_NOVELS', 'novels')
+    MYSQL_TABLE_ANIME = os.getenv('MYSQL_TABLE_ANIME', 'anime')
     MYSQL_TABLE_USERS = os.getenv('MYSQL_TABLE_USERS', 'users')
     MYSQL_CHARSET = os.getenv('MYSQL_CHARSET', 'utf8mb4')
 
@@ -98,6 +99,8 @@ class Config:
     MONGO_DB = os.getenv('MONGO_DB', 'narloom')
     MONGO_ASSET_DATA_COLLECTION = os.getenv('MONGO_ASSET_DATA_COLLECTION', 'asset_data')
     MONGO_WORK_DETAILS_COLLECTION = os.getenv('MONGO_WORK_DETAILS_COLLECTION', 'work_details')
+    MONGO_NOVEL_DETAILS_COLLECTION = os.getenv('MONGO_NOVEL_DETAILS_COLLECTION', 'novel_details')
+    MONGO_ANIME_DETAILS_COLLECTION = os.getenv('MONGO_ANIME_DETAILS_COLLECTION', 'anime_details')
     @staticmethod
     def init_app(app):
         """初始化应用配置"""
