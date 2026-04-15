@@ -58,11 +58,15 @@ def upload_picture():
     object_key = oss_service.generate_object_key(user_id, file_extension)
 
     # 上传到 OSS
-    upload_result = oss_service.upload_picture(
-        file_content=file_content,
-        object_key=object_key,
-        content_type=file.content_type or FileTypes.IMAGE_JPEG
-    )
+    try:
+        upload_result = oss_service.upload_picture(
+            file_content=file_content,
+            object_key=object_key,
+            content_type=file.content_type or FileTypes.IMAGE_JPEG
+        )
+    except RuntimeError as e:
+        logger.error(f"OSS service not available: {e}")
+        return error_response('Picture upload service is not available (OSS not configured)', 503)
 
     if not upload_result.get('success'):
         return error_response(f"Failed to upload picture: {upload_result.get('error')}", 500)

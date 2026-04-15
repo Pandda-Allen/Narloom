@@ -13,7 +13,7 @@ class NovelService:
 
     def insert_novel(self, work_id: str, author_id: str, novel_number: int,
                      novel_title: str = '', content: str = '', status: str = 'draft',
-                     word_count: int = 0, description: str = '') -> Dict:
+                     word_count: int = 0, description: str = '', notes: str = '') -> Dict:
         """插入小说章节记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
@@ -23,12 +23,12 @@ class NovelService:
 
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (novel_id, work_id, author_id, novel_number, novel_title, content, status, word_count, notes, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO {table} (novel_id, work_id, author_id, novel_number, novel_title, content, status, word_count, description, notes, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (novel_id, work_id, author_id, novel_number,
                                  novel_title, content, status,
-                                 word_count, description,
+                                 word_count, description, notes,
                                  now, now))
             conn.commit()
 
@@ -42,6 +42,7 @@ class NovelService:
             "status": status,
             "word_count": word_count,
             "description": description,
+            "notes": notes,
             "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": now.strftime("%Y-%m-%d %H:%M:%S")
         }

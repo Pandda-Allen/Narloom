@@ -50,7 +50,8 @@ class AnimeService:
         field_mapping = {
             'anime_number': 'anime_number',
             'description': 'description',
-            'notes': 'notes'
+            'notes': 'notes',
+            'status': 'status'
         }
         set_clauses = []
         params = []

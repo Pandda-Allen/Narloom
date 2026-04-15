@@ -24,6 +24,7 @@ class OSSService:
     _initialized = False
     _picture_service = None
     _video_service = None
+    _initialized_flag = False  # 用于内部状态追踪，避免与 property 冲突
 
     def __new__(cls):
         if cls._instance is None:
@@ -46,11 +47,20 @@ class OSSService:
         self._picture_service = picture_service
         self._video_service = video_service
 
-        # 触发底层服务初始化
-        if not self._picture_service._initialized:
-            self._picture_service.init_app(self._get_app())
-        if not self._video_service._initialized:
-            self._video_service.init_app(self._get_app())
+        # 触发底层服务初始化（允许 OSS 未配置时跳过）
+        try:
+            if not self._picture_service._initialized:
+                self._picture_service.init_app(self._get_app())
+        except RuntimeError as e:
+            logger.warning(f"Picture service not initialized: {e}")
+            self._picture_service = None
+
+        try:
+            if not self._video_service._initialized:
+                self._video_service.init_app(self._get_app())
+        except RuntimeError as e:
+            logger.warning(f"Video service not initialized: {e}")
+            self._video_service = None
 
         self._initialized = True
         logger.info("OSS Service initialized successfully (Picture + Video services)")
@@ -63,11 +73,11 @@ class OSSService:
     @property
     def _initialized(self):
         """代理到底层服务的初始化状态"""
-        return self.__class__._initialized
+        return self.__class__._initialized_flag
 
     @_initialized.setter
     def _initialized(self, value):
-        self.__class__._initialized = value
+        self.__class__._initialized_flag = value
 
     def _ensure_initialized(self):
         """确保服务已初始化"""
@@ -79,6 +89,8 @@ class OSSService:
                        content_type: str = 'image/jpeg') -> Dict:
         """上传图片到阿里云 OSS"""
         self._ensure_initialized()
+        if self._picture_service is None:
+            raise RuntimeError("Picture service not available (OSS not configured)")
         return self._picture_service.upload_picture(file_content, object_key, content_type)
 
     def upload_picture_from_file(self, file_path: str, object_key: str,

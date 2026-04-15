@@ -95,6 +95,7 @@ class RequestParams:
     PICTURE = 'picture'
     OSS_OBJECT_KEY = 'oss_object_key'
     ORIGINAL_FILENAME = 'original_filename'
+    FILE_SIZE = 'file_size'
 
     # 生成参数
     MODE = 'mode'

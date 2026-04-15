@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.6
-**更新日期**: 2026-04-07
+**版本**: 2.7
+**更新日期**: 2026-04-15
 **基础路径**: `/`
 
 ---
@@ -1601,6 +1601,24 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.7 (2026-04-15) - 测试完善与 Bug 修复
+
+- **测试用例完善**
+  - 新增 `tests/test_novel_anime_api.py`，覆盖 Novel、Anime、Picture 模块
+  - 所有核心功能测试通过（11/11）
+  - 图片上传测试支持 OSS 配置检测，未配置时自动跳过
+
+- **Bug 修复**
+  - 修复 `OSSService._initialized` property 循环引用问题
+  - 修复 `RequestParams.FILE_SIZE` 缺失导致的上传失败
+  - 修复 Picture 服务在应用启动时未正确初始化的问题
+  - 修复 `fetchPictureByAssetId` 路由参数错误
+
+- **代码优化**
+  - `db/storage/oss.py`: 允许 OSS 未配置时 gracefully degrade
+  - `api/routes/pictures.py`: 添加 OSS 不可用时的友好错误提示
+  - `utils/constants.py`: 补充缺失的常量定义
 
 ### v2.6 (2026-04-07) - 架构重构
 

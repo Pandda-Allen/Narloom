@@ -101,7 +101,6 @@ def get_animes_by_work_id():
     """根据 work_id 获取 anime 镜头列表"""
     validate_required_fields(request.args, ['work_id'])
     work_id = request.args.get('work_id')
-    status = request.args.get('status')
 
     try:
         limit = int(request.args.get('limit', 100))
@@ -109,7 +108,7 @@ def get_animes_by_work_id():
     except ValueError:
         return error_response('Invalid limit or offset', 400)
 
-    animes = anime_service.fetch_anime_by_work_id(work_id, status, limit, offset)
+    animes = anime_service.fetch_anime_by_work_id(work_id, limit, offset)
     return api_response(
         success=True,
         message='Animes fetched successfully',
