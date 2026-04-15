@@ -132,16 +132,17 @@ class AnimeDetailsService(BaseService):
         """将 asset_id 添加到 anime 的 asset_ids"""
         collection = self._ensure_collection()
 
-        update_data = {}
-        if asset_type == 'video':
-            update_data = {'$addToSet': {'video_assets': asset_data or {'asset_id': asset_id}}}
-        elif asset_type == 'picture':
-            update_data = {'$addToSet': {'picture_assets': asset_data or {'asset_id': asset_id}}}
+        # 构建更新操作
+        update_ops = {'$addToSet': {'asset_ids': asset_id}}
+
+        if asset_type == 'video' and asset_data:
+            update_ops['$push'] = {'video_assets': asset_data}
+        elif asset_type == 'picture' and asset_data:
+            update_ops['$push'] = {'picture_assets': asset_data}
 
         result = collection.update_one(
             {'anime_id': anime_id},
-            {'$addToSet': {'asset_ids': asset_id}},
-            **update_data
+            update_ops
         )
         return result.matched_count > 0
 

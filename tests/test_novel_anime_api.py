@@ -377,7 +377,7 @@ def test_confirm_anime():
 
 
 def test_get_anime_details():
-    """测试获取动画镜头详情接口"""
+    """测试获取动画镜头详情接口（包含 video/picture assets）"""
     app = create_app()
 
     # 先创建作品和镜头
@@ -410,7 +410,7 @@ def test_get_anime_details():
 
     # 测试获取详情
     with app.test_client() as client:
-        response = client.get(f'/rest/v1/anime/getAnimeDetails?shot_id={anime_id}')
+        response = client.get(f'/rest/v1/anime/getVideoDetails?shot_id={anime_id}')
 
         assert response.status_code == 200, f"Get anime details failed: {response.data}"
         result = json.loads(response.data)

@@ -1,7 +1,7 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.7
+**版本**: 2.8
 **更新日期**: 2026-04-15
 **基础路径**: `/`
 
@@ -1601,6 +1601,33 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.8 (2026-04-15) - 视频生成接口完善
+
+- **Video 路由更新**
+  - `getAnimeDetails` → `getVideoDetails`（统一命名）
+  - 视频生成接口支持将生成的视频保存到 MongoDB
+  - `/generateVideo` 和 `/generateMultiImageVideo` 接口现在会保存视频 asset_id
+
+- **新增视频测试用例**
+  - 新增 `tests/test_video_api.py`，覆盖所有 Video 相关接口
+  - 测试内容包括：
+    - 视频详情获取
+    - 视频数据库存储（MongoDB）
+    - 视频 AI 服务调用（大模型接口）
+    - 单图视频生成
+    - 多图片视频生成
+  - 所有视频测试通过（6/6）
+
+- **Bug 修复**
+  - 修复 `mongo_anime.add_asset_to_anime()` MongoDB 更新操作错误
+  - 修复 anime.py 中 `video_generation_service` 未导入的问题
+  - 补充 `uuid` 模块导入
+
+- **API 路由列表**
+  - `/rest/v1/anime/getVideoDetails` - 获取视频详情（包含 video_assets 和 picture_assets）
+  - `/rest/v1/anime/generateVideo` - 生成单图视频
+  - `/rest/v1/anime/generateMultiImageVideo` - 生成多图片视频
 
 ### v2.7 (2026-04-15) - 测试完善与 Bug 修复
 

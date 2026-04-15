@@ -10,7 +10,9 @@ from utils.general_helper import validate_required_fields
 from db import MySQLService, MongoService
 from db.anime import anime_service
 from db.mongo_anime import anime_details_service
+from services.video_generation_service import video_generation_service
 import logging
+import uuid
 
 anime_bp = Blueprint('anime', __name__)
 logger = logging.getLogger(__name__)
@@ -158,6 +160,22 @@ def generate_video_endpoint():
                 asset_data={'asset_id': picture_id, 'url': picture_url}
             )
 
+        # 保存生成的视频信息到 MongoDB
+        if video_result.get('success') and video_result.get('video_url'):
+            video_asset_id = str(uuid.uuid4())
+            anime_details_service.add_asset_to_anime(
+                anime_id=shot_id,
+                asset_id=video_asset_id,
+                asset_type='video',
+                asset_data={
+                    'video_url': video_result.get('video_url'),
+                    'task_id': video_result.get('task_id'),
+                    'prompt': prompt,
+                    'model_used': video_result.get('model_used', 'wan2.6-i2v')
+                }
+            )
+            video_result['video_asset_id'] = video_asset_id
+
         return api_response(
             success=True,
             message='Video generation task created',
@@ -202,6 +220,20 @@ def generate_multi_image_video_endpoint():
                     asset_data={'asset_id': pic_id, 'url': picture_urls[i]}
                 )
 
+        # 保存生成的视频信息到 MongoDB
+        if video_result.get('success') and video_result.get('video_url'):
+            video_asset_id = str(uuid.uuid4())
+            anime_details_service.add_asset_to_anime(
+                anime_id=shot_id,
+                asset_id=video_asset_id,
+                asset_type='video',
+                asset_data={
+                    'video_url': video_result.get('video_url'),
+                    'model_used': video_result.get('model_used', 'wan2.6-i2v')
+                }
+            )
+            video_result['video_asset_id'] = video_asset_id
+
         return api_response(
             success=True,
             message='Multi-image video generation task created',
@@ -236,10 +268,10 @@ def confirm_anime():
     )
 
 
-@anime_bp.route('/getAnimeDetails', methods=['GET'])
+@anime_bp.route('/getVideoDetails', methods=['GET'])
 @handle_errors
-def get_anime_details():
-    """获取 anime 镜头详情（包含 asset 信息）"""
+def get_video_details():
+    """获取视频镜头详情（包含 asset 信息）"""
     validate_required_fields(request.args, ['shot_id'])
     shot_id = request.args.get('shot_id')
 
@@ -263,7 +295,7 @@ def get_anime_details():
 
     return api_response(
         success=True,
-        message='Anime details fetched successfully',
+        message='Video details fetched successfully',
         data=anime,
         count=1
     )
