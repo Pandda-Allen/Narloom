@@ -98,6 +98,29 @@ def build_novel_data(data):
     }
 
 
+def build_work_data(data):
+    """
+    从请求数据构建作品数据
+
+    Args:
+        data: 请求数据 dict
+
+    Returns:
+        dict: 过滤后的作品数据，只包含有效字段
+    """
+    return {
+        'author_id': data.get('author_id'),
+        'title': data.get('title', ''),
+        'genre': data.get('genre', ''),
+        'tags': data.get('tags', []),
+        'status': data.get('status', '连载中'),
+        'chapter_count': data.get('chapter_count', 0),
+        'word_count': data.get('word_count', 0),
+        'description': data.get('description', ''),
+        'work_type': data.get('work_type', 'novel'),
+    }
+
+
 # ========== 分页参数解析 ==========
 
 def parse_pagination_args(args, default_limit=100, max_limit=1000):

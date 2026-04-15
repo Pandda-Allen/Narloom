@@ -10,7 +10,7 @@ from utils.general_helper import validate_required_fields
 from utils.resource_helper import (
     get_full_asset_by_id,
     get_full_work_by_id,
-    build_novel_data,
+    build_work_data,
     parse_pagination_args,
     delete_work_cascade
 )
@@ -21,43 +21,43 @@ work_bp = Blueprint('work', __name__)
 logger = logging.getLogger(__name__)
 
 
-@work_bp.route('/createNovel', methods=['POST'])
+@work_bp.route('/createWork', methods=['POST'])
 @handle_errors
-def create_novel():
-    """创建新的作品 (novel)"""
+def create_work():
+    """创建新的作品"""
     data = request.get_json()
     validate_required_fields(data, ['author_id', 'title'])
 
-    novel_data = build_novel_data(data)
+    work_data = build_work_data(data)
 
     try:
-        work = MySQLService().insert_work(**novel_data)
+        work = MySQLService().insert_work(**work_data)
         work_id = work['work_id']
     except Exception as e:
-        logger.error(f"Error creating novel: {str(e)}")
-        return error_response('Failed to create novel', 500)
+        logger.error(f"Error creating work: {str(e)}")
+        return error_response('Failed to create work', 500)
 
     try:
         MongoService().insert_work_details(work_id, asset_ids=[], chapter_ids=[])
     except Exception as e:
         logger.error(f"Error inserting work details: {str(e)}")
-        return error_response('Failed to create novel', 500)
+        return error_response('Failed to create work', 500)
 
     # 获取完整的作品信息
     full_work = get_full_work_by_id(work_id)
 
     return api_response(
         success=True,
-        message='Novel created successfully',
+        message='Work created successfully',
         data=full_work,
         count=1
     )
 
 
-@work_bp.route('/updateNovelById', methods=['POST'])
+@work_bp.route('/updateWorkById', methods=['POST'])
 @handle_errors
-def update_novel():
-    """更新作品 (novel)"""
+def update_work():
+    """更新作品"""
     data = request.get_json()
     validate_required_fields(data, ['work_id'])
 
@@ -65,7 +65,7 @@ def update_novel():
     update_fields = {}
 
     # 允许更新的字段列表
-    allowed_fields = ['title', 'genre', 'tags', 'status', 'chapter_count', 'word_count', 'description']
+    allowed_fields = ['title', 'genre', 'tags', 'status', 'chapter_count', 'word_count', 'description', 'work_type']
     for field in allowed_fields:
         if field in data:
             update_fields[field] = data[field]
@@ -75,7 +75,7 @@ def update_novel():
 
     updated = MySQLService().update_work(work_id, update_fields)
     if not updated:
-        return error_response('Failed to update novel', 500)
+        return error_response('Failed to update work', 500)
 
     return api_response(
         success=True,
@@ -85,16 +85,16 @@ def update_novel():
     )
 
 
-@work_bp.route('/getNovelById', methods=['GET'])
+@work_bp.route('/getWorkById', methods=['GET'])
 @handle_errors
-def get_novel():
+def get_work():
     """获取单个作品详情"""
-    validate_required_fields(request.args, ['novel_id'])
-    work_id = request.args.get('novel_id')
+    validate_required_fields(request.args, ['work_id'])
+    work_id = request.args.get('work_id')
 
     work = get_full_work_by_id(work_id)
     if not work:
-        return error_response('Novel not found', 404)
+        return error_response('Work not found', 404)
 
     return api_response(
         success=True,
@@ -104,9 +104,9 @@ def get_novel():
     )
 
 
-@work_bp.route('/getNovelsByAuthorId', methods=['GET'])
+@work_bp.route('/getWorksByAuthorId', methods=['GET'])
 @handle_errors
-def get_novels_by_author_id():
+def get_works_by_author_id():
     """根据作者 ID 获取作品列表"""
     validate_required_fields(request.args, ['author_id'])
     author_id = request.args.get('author_id')
@@ -126,9 +126,9 @@ def get_novels_by_author_id():
     )
 
 
-@work_bp.route('/deleteNovelById', methods=['POST'])
+@work_bp.route('/deleteWorkById', methods=['POST'])
 @handle_errors
-def delete_novel():
+def delete_work():
     """删除作品"""
     data = request.get_json()
     validate_required_fields(data, ['work_id'])
@@ -143,13 +143,13 @@ def delete_novel():
             data=None,
             count=1
         )
-    return error_response('Failed to delete novel', 500)
+    return error_response('Failed to delete work', 500)
 
 
 # ---------- work_details 关联操作 ----------
-@work_bp.route('/addAssetToNovel', methods=['POST'])
+@work_bp.route('/addAssetToWork', methods=['POST'])
 @handle_errors
-def add_asset_to_novel():
+def add_asset_to_work():
     """将 asset 关联到作品"""
     data = request.get_json()
     validate_required_fields(data, ['work_id', 'asset_id'])
@@ -165,7 +165,7 @@ def add_asset_to_novel():
     try:
         updated = MongoService().add_asset_to_work(work_id, asset_id)
         if not updated:
-            MongoService().insert_work_details(work_id, asset_ids=[asset_id], chapter_ids=[])
+            MongoService().insert_work_details(work_id, asset_ids=[asset_id], novel_ids=[], anime_ids=[])
     except Exception as e:
         logger.error(f"Error adding asset to work: {str(e)}")
         return error_response('Failed to add asset to work', 500)
@@ -224,9 +224,9 @@ def get_assets_by_work_id():
     )
 
 
-@work_bp.route('/removeAssetFromNovel', methods=['POST'])
+@work_bp.route('/removeAssetFromWork', methods=['POST'])
 @handle_errors
-def remove_asset_from_novel():
+def remove_asset_from_work():
     """从作品中移除资产"""
     data = request.get_json()
     validate_required_fields(data, ['work_id', 'asset_id'])

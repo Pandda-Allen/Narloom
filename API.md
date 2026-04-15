@@ -452,7 +452,7 @@ Authorization: Bearer <access_token>
 
 ### 1. 创建新作品
 
-**端点**: `POST /createNovel`
+**端点**: `POST /createWork`
 
 **请求体**:
 ```json
@@ -482,7 +482,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "success": true,
-  "message": "Novel created successfully",
+  "message": "Work created successfully",
   "data": {
     "work_id": "uuid",
     "author_id": "uuid",
@@ -495,7 +495,8 @@ Authorization: Bearer <access_token>
     "updated_at": "2026-03-31T00:00:00",
     "work_details": {
       "asset_ids": [],
-      "chapter_ids": []
+      "novel_ids": [],
+      "anime_ids": []
     }
   },
   "count": 1
@@ -506,7 +507,7 @@ Authorization: Bearer <access_token>
 
 ### 2. 更新作品
 
-**端点**: `POST /updateNovelById`
+**端点**: `POST /updateWorkById`
 
 **请求体**:
 ```json
@@ -520,7 +521,7 @@ Authorization: Bearer <access_token>
 }
 ```
 
-**可更新字段**: `title`, `genre`, `tags`, `status`, `chapter_count`, `word_count`, `description`
+**可更新字段**: `title`, `genre`, `tags`, `status`, `chapter_count`, `word_count`, `description`, `work_type`
 
 **响应**:
 ```json
@@ -536,18 +537,18 @@ Authorization: Bearer <access_token>
 
 ### 3. 获取作品详情
 
-**端点**: `GET /getNovelById`
+**端点**: `GET /getWorkById`
 
 **请求参数**:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `novel_id` | String | 是 | 作品 ID |
+| `work_id` | String | 是 | 作品 ID |
 
 **响应**:
 ```json
 {
   "success": true,
-  "message": "Novel fetched successfully",
+  "message": "Work fetched successfully",
   "data": {
     "work_id": "uuid",
     "author_id": "uuid",
@@ -560,7 +561,8 @@ Authorization: Bearer <access_token>
     "updated_at": "2026-03-31T00:00:00",
     "work_details": {
       "asset_ids": ["asset-uuid-1", "asset-uuid-2"],
-      "chapter_ids": ["chapter-uuid-1", "chapter-uuid-2"]
+      "novel_ids": ["novel-uuid-1", "novel-uuid-2"],
+      "anime_ids": ["anime-uuid-1", "anime-uuid-2"]
     }
   },
   "count": 1
@@ -571,7 +573,7 @@ Authorization: Bearer <access_token>
 
 ### 4. 获取作者作品列表
 
-**端点**: `GET /getNovelsByAuthorId`
+**端点**: `GET /getWorksByAuthorId`
 
 **请求参数**:
 | 参数 | 类型 | 必填 | 说明 |
@@ -584,7 +586,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "success": true,
-  "message": "Novels fetched successfully",
+  "message": "Works fetched successfully",
   "data": [...],
   "count": 10
 }
@@ -594,12 +596,12 @@ Authorization: Bearer <access_token>
 
 ### 5. 删除作品
 
-**端点**: `POST /deleteNovelById`
+**端点**: `POST /deleteWorkById`
 
 **请求体**:
 ```json
 {
-  "novel_id": "uuid"
+  "work_id": "uuid"
 }
 ```
 
@@ -609,7 +611,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "success": true,
-  "message": "Novel deleted successfully",
+  "message": "Work deleted successfully",
   "data": null,
   "count": 1
 }
@@ -619,12 +621,12 @@ Authorization: Bearer <access_token>
 
 ### 6. 添加资产到作品
 
-**端点**: `POST /addAssetToNovel`
+**端点**: `POST /addAssetToWork`
 
 **请求体**:
 ```json
 {
-  "novel_id": "uuid",
+  "work_id": "uuid",
   "asset_id": "uuid"
 }
 ```
@@ -633,7 +635,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "success": true,
-  "message": "Asset added to novel successfully",
+  "message": "Asset added to work successfully",
   "data": {...},
   "count": 1
 }
@@ -666,12 +668,12 @@ Authorization: Bearer <access_token>
 
 ### 8. 从作品移除资产
 
-**端点**: `POST /removeAssetFromNovel`
+**端点**: `POST /removeAssetFromWork`
 
 **请求体**:
 ```json
 {
-  "novel_id": "uuid",
+  "work_id": "uuid",
   "asset_id": "uuid"
 }
 ```
@@ -680,7 +682,7 @@ Authorization: Bearer <access_token>
 ```json
 {
   "success": true,
-  "message": "Asset removed from novel successfully",
+  "message": "Asset removed from work successfully",
   "data": null,
   "count": 1
 }
