@@ -7,13 +7,10 @@ from flask import Blueprint, request
 from utils.response_helper import error_response, api_response
 from utils.decorators import handle_errors
 from utils.general_helper import validate_required_fields
-from utils.constants import (
-    AssetType, AssetDataType, RequestParams, ResponseMessage,
-    Defaults, FileTypes, Pagination
-)
+from utils.constants import RequestParams, ResponseMessage
+from utils.picture_uploader import upload_picture_file
 from db import MySQLService, MongoService, oss_service
 import logging
-from datetime import datetime
 
 picture_bp = Blueprint('picture', __name__)
 logger = logging.getLogger(__name__)
@@ -50,61 +47,18 @@ def upload_picture():
     user_id = data.get(RequestParams.USER_ID)
     work_id = data.get(RequestParams.WORK_ID, None)
 
-    # 读取文件内容
-    file_content = file.read()
-    file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else Defaults.IMAGE_EXTENSION
-
-    # 生成 OSS 对象键
-    object_key = oss_service.generate_object_key(user_id, file_extension)
-
-    # 上传到 OSS
-    try:
-        upload_result = oss_service.upload_picture(
-            file_content=file_content,
-            object_key=object_key,
-            content_type=file.content_type or FileTypes.IMAGE_JPEG
-        )
-    except RuntimeError as e:
-        logger.error(f"OSS service not available: {e}")
-        return error_response('Picture upload service is not available (OSS not configured)', 503)
-
-    if not upload_result.get('success'):
-        return error_response(f"Failed to upload picture: {upload_result.get('error')}", 500)
-
-    # 创建 asset 记录（类型：picture）
-    mysql_row = MySQLService().insert_asset(user_id, AssetType.PICTURE, work_id)
-    asset_id = mysql_row['asset_id']
-
-    # 处理 OSS URL，只保留 API 部分
-    oss_url_for_db = upload_result['url'].split('?')[0]
-
-    # 创建 asset_data 记录
-    asset_data = {
-        AssetDataType.TYPE: AssetType.PICTURE,
-        AssetDataType.OSS_URL: oss_url_for_db,
-        AssetDataType.OSS_OBJECT_KEY: object_key,
-        AssetDataType.ORIGINAL_FILENAME: file.filename,
-        AssetDataType.FILE_SIZE: len(file_content),
-        AssetDataType.UPLOAD_TIMESTAMP: datetime.now().isoformat()
-    }
-
-    try:
-        MongoService().insert_asset_data(asset_id, asset_data)
-    except Exception as e:
-        logger.error(f"Error inserting asset data to MongoDB: {str(e)}")
-        # 回滚：删除 MySQL 和 OSS 中的数据
-        MySQLService().delete_asset(asset_id)
-        oss_service.delete_picture(object_key)
-        return error_response('Failed to create asset record', 500)
+    # 调用统一的图片上传函数
+    picture_url, asset_id, error = upload_picture_file(file, user_id, work_id)
+    if error:
+        return error
 
     result = {
         RequestParams.ASSET_ID: asset_id,
         RequestParams.USER_ID: user_id,
         RequestParams.WORK_ID: work_id,
-        'url': upload_result['url'],
-        'object_key': object_key,
+        'url': picture_url,
         RequestParams.ORIGINAL_FILENAME: file.filename,
-        RequestParams.FILE_SIZE: len(file_content)
+        RequestParams.FILE_SIZE: len(file.read())
     }
 
     return api_response(

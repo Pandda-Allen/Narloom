@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.8
-**更新日期**: 2026-04-15
+**版本**: 2.9
+**更新日期**: 2026-04-16
 **基础路径**: `/`
 
 ---
@@ -935,15 +935,22 @@ Authorization: Bearer <access_token>
 **请求参数**:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `shot_id` | String | 是 | 镜头 ID (anime_id) |
+| `anime_id` | String | 是 | 镜头 ID |
+| `user_id` | String | 是 | 用户 ID（用于 asset 权限验证） |
 | `prompt` | String | 是 | 动画生成提示词 |
 | `negative_prompt` | String | 否 | 负向提示词 |
 | `style` | String | 否 | 动画风格 |
 | `creativity` | Float | 否 | 创意度 (0-1, 默认 0.3) |
 | `ratio` | String | 否 | 视频比例 (默认 16:9) |
-| `picture` | Object | 是 | 图片信息 |
+| `asset_id` | String | 条件 | 图片 asset ID（与 `picture` 二选一） |
+| `picture` | Object | 条件 | 图片信息（与 `asset_id` 二选一） |
 
-**picture 参数说明**:
+**asset_id 模式**:
+- 当提供 `asset_id` 时，系统会从 asset 数据库中查找对应的图片信息
+- 会验证该 asset 是否属于指定用户（`user_id` 匹配）
+- 会自动从 MongoDB 中获取图片的 `oss_url`
+
+**picture 参数说明** (当不使用 asset_id 时):
 ```json
 {
   "asset_id": "uuid",
@@ -960,6 +967,7 @@ Authorization: Bearer <access_token>
   "data": {
     "task_id": "uuid",
     "video_url": "https://example.com/video.mp4",
+    "video_asset_id": "uuid",
     "status": "processing"
   },
   "count": 1
@@ -977,11 +985,19 @@ Authorization: Bearer <access_token>
 **请求参数**:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `shot_id` | String | 是 | 镜头 ID (anime_id) |
-| `prompt` | String | 是 | 动画生成提示词 |
-| `pictures` | Array | 是 | 图片信息列表 |
+| `anime_id` | String | 是 | 镜头 ID |
+| `user_id` | String | 是 | 用户 ID（用于 asset 权限验证） |
+| `prompt` | String | 否 | 动画生成提示词 |
+| `pictures` | Array | 是 | 图片信息列表（asset_id 列表或图片对象列表） |
 
-**pictures 参数说明**:
+**pictures 参数说明** (支持两种格式):
+
+**格式 1 - asset_id 列表（推荐）**:
+```json
+["asset_id_1", "asset_id_2", ...]
+```
+
+**格式 2 - 图片对象列表**:
 ```json
 [
   {
@@ -1000,6 +1016,7 @@ Authorization: Bearer <access_token>
   "data": {
     "task_id": "uuid",
     "video_url": "https://example.com/merged_video.mp4",
+    "video_asset_id": "uuid",
     "status": "processing"
   },
   "count": 1
@@ -1015,7 +1032,7 @@ Authorization: Bearer <access_token>
 **请求体**:
 ```json
 {
-  "shot_id": "uuid"
+  "anime_id": "uuid"
 }
 ```
 
@@ -1033,20 +1050,20 @@ Authorization: Bearer <access_token>
 
 ---
 
-### 6. 获取镜头详情
+### 6. 获取视频详情
 
-**端点**: `GET /getAnimeDetails`
+**端点**: `GET /getVideoDetails`
 
 **请求参数**:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `shot_id` | String | 是 | 镜头 ID (anime_id) |
+| `anime_id` | String | 是 | 镜头 ID |
 
 **响应**:
 ```json
 {
   "success": true,
-  "message": "Anime details fetched successfully",
+  "message": "Video details fetched successfully",
   "data": {
     "anime_id": "uuid",
     "work_id": "uuid",
@@ -1601,6 +1618,32 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.9 (2026-04-16) - generateVideo 接口 asset_id 支持
+
+- **generateVideo 接口增强**
+  - 支持通过 `asset_id` 参数从 asset 数据库自动查找图片信息
+  - 新增 `user_id` 参数用于 asset 权限验证
+  - 参数命名统一：`shot_id` → `anime_id`
+  - 支持两种模式：
+    - **asset_id 模式**：从数据库查找，自动验证用户权限
+    - **picture 对象模式**：使用前端直接提供的图片信息
+  
+- **generateMultiImageVideo 接口增强**
+  - `pictures` 参数支持 asset_id 列表格式（推荐）
+  - 支持批量 asset 权限验证
+  - 参数命名统一：`shot_id` → `anime_id`
+
+- **confirm 接口参数更新**
+  - `shot_id` → `anime_id`
+
+- **getVideoDetails 接口参数更新**
+  - `shot_id` → `anime_id`
+  - 响应消息更新为 "Video details fetched successfully"
+
+- **测试验证**
+  - 所有视频 API 测试通过（6/6）
+  - 包括单图/多图片视频生成、数据库存储、AI 服务调用
 
 ### v2.8 (2026-04-15) - 视频生成接口完善
 

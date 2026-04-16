@@ -102,15 +102,12 @@ def test_generate_video_single_image():
             picture_id = picture_data['asset_id']
 
         # 测试视频生成接口 - 使用正确的数据格式
-        # anime.py 中的 _get_picture_from_request 期望 data 中包含 'picture' 字段
-        # 且 picture 是一个包含 id/asset_id 和 url/cos_url/cloudflare_url 的对象
+        # anime.py 中的 generateVideo 需要 anime_id, user_id, prompt, asset_id
         video_data = {
-            'shot_id': anime_id,
+            'anime_id': anime_id,
+            'user_id': TEST_USER_ID,
             'prompt': 'Animate this scene naturally',
-            'picture': {
-                'asset_id': picture_id,
-                'cos_url': picture_url  # 使用 cos_url 作为图片来源
-            },
+            'asset_id': picture_id,  # 使用上传后返回的 asset_id
             'duration': 5,
             'motion_strength': 0.5
         }
@@ -132,7 +129,7 @@ def test_generate_video_single_image():
         print(f"  Video generation result: {video_result.get('success', 'N/A')}")
 
         # 验证视频信息被保存到数据库
-        details_response = client.get(f'/rest/v1/anime/getVideoDetails?shot_id={anime_id}')
+        details_response = client.get(f'/rest/v1/anime/getVideoDetails?anime_id={anime_id}')
         details_result = json.loads(details_response.data)
 
         assert details_result['status'] == 'success', f"Get details failed: {details_result}"
@@ -197,11 +194,12 @@ def test_generate_multi_image_video():
                     'cos_url': picture_data['url']
                 })
 
-        # 测试多图片视频生成接口
+        # 测试多图片视频生成接口 - 使用 asset_id 列表
         video_data = {
-            'shot_id': anime_id,
+            'anime_id': anime_id,
+            'user_id': TEST_USER_ID,
             'prompt': 'Create a smooth transition between these images',
-            'pictures': pictures
+            'pictures': [pic['asset_id'] for pic in pictures]  # 传递 asset_id 列表
         }
         response = client.post(
             '/rest/v1/anime/generateMultiImageVideo',
@@ -240,7 +238,7 @@ def test_get_video_details():
         anime_id = create_test_anime_for_video(work_id)
 
         # 测试获取视频详情
-        response = client.get(f'/rest/v1/anime/getVideoDetails?shot_id={anime_id}')
+        response = client.get(f'/rest/v1/anime/getVideoDetails?anime_id={anime_id}')
 
         assert response.status_code == 200, f"Get video details failed: {response.data}"
         result = json.loads(response.data)

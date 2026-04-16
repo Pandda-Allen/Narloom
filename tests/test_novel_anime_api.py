@@ -358,7 +358,7 @@ def test_confirm_anime():
     # 测试确认镜头
     with app.test_client() as client:
         confirm_data = {
-            'shot_id': anime_id
+            'anime_id': anime_id
         }
         response = client.post(
             '/rest/v1/anime/confirm',
@@ -410,7 +410,7 @@ def test_get_anime_details():
 
     # 测试获取详情
     with app.test_client() as client:
-        response = client.get(f'/rest/v1/anime/getVideoDetails?shot_id={anime_id}')
+        response = client.get(f'/rest/v1/anime/getVideoDetails?anime_id={anime_id}')
 
         assert response.status_code == 200, f"Get anime details failed: {response.data}"
         result = json.loads(response.data)
