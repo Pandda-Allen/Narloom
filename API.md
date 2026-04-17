@@ -1,8 +1,8 @@
 # API 接口文档
 
 **项目名称**: Narloom API
-**版本**: 2.9
-**更新日期**: 2026-04-16
+**版本**: 2.11
+**更新日期**: 2026-04-17
 **基础路径**: `/`
 
 ---
@@ -858,7 +858,8 @@ Authorization: Bearer <access_token>
   "author_id": "uuid",
   "anime_number": 1,
   "description": "镜头描述",
-  "notes": "备注"
+  "notes": "备注",
+  "status": "draft"
 }
 ```
 
@@ -870,6 +871,7 @@ Authorization: Bearer <access_token>
 | `anime_number` | Integer | 是 | 镜头编号 |
 | `description` | String | 否 | 镜头描述 |
 | `notes` | String | 否 | 备注 |
+| `status` | String | 否 | 状态 (默认 'draft') |
 
 **响应**:
 ```json
@@ -883,6 +885,7 @@ Authorization: Bearer <access_token>
     "anime_number": 1,
     "description": "镜头描述",
     "notes": "备注",
+    "status": "draft",
     "created_at": "2026-04-07T00:00:00",
     "updated_at": "2026-04-07T00:00:00"
   },
@@ -900,6 +903,7 @@ Authorization: Bearer <access_token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `work_id` | String | 是 | 作品 ID |
+| `status` | String | 否 | 状态过滤（如 'draft', 'confirmed'） |
 | `limit` | Integer | 否 | 每页数量 (默认 100) |
 | `offset` | Integer | 否 | 偏移量 (默认 0) |
 
@@ -926,6 +930,37 @@ Authorization: Bearer <access_token>
 
 ---
 
+### 2.1. 获取单个镜头信息
+
+**端点**: `GET /getAnimeById`
+
+**请求参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `anime_id` | String | 是 | 镜头 ID |
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Anime fetched successfully",
+  "data": {
+    "anime_id": "uuid",
+    "work_id": "uuid",
+    "author_id": "uuid",
+    "anime_number": 1,
+    "description": "镜头描述",
+    "notes": "备注",
+    "status": "draft",
+    "created_at": "2026-04-07T00:00:00",
+    "updated_at": "2026-04-07T00:00:00"
+  },
+  "count": 1
+}
+```
+
+---
+
 ### 3. 生成视频（单图）
 
 **端点**: `POST /generateVideo`
@@ -942,8 +977,9 @@ Authorization: Bearer <access_token>
 | `style` | String | 否 | 动画风格 |
 | `creativity` | Float | 否 | 创意度 (0-1, 默认 0.3) |
 | `ratio` | String | 否 | 视频比例 (默认 16:9) |
+| `duration` | Integer | 否 | 视频时长（秒），范围 3-20，默认 5 |
 | `asset_id` | String | 条件 | 图片 asset ID（与 `picture` 二选一） |
-| `picture` | Object | 条件 | 图片信息（与 `asset_id` 二选一） |
+| `picture` | Object/Object | 条件 | 图片信息（与 `asset_id` 二选一，支持文件或 URL） |
 
 **asset_id 模式**:
 - 当提供 `asset_id` 时，系统会从 asset 数据库中查找对应的图片信息
@@ -988,6 +1024,7 @@ Authorization: Bearer <access_token>
 | `anime_id` | String | 是 | 镜头 ID |
 | `user_id` | String | 是 | 用户 ID（用于 asset 权限验证） |
 | `prompt` | String | 否 | 动画生成提示词 |
+| `duration` | Integer | 否 | 视频时长（秒），范围 3-20，默认 5 |
 | `pictures` | Array | 是 | 图片信息列表（asset_id 列表或图片对象列表） |
 
 **pictures 参数说明** (支持两种格式):
@@ -1618,6 +1655,45 @@ DASHSCOPE_DEFAULT_MODEL=qwen3.5-plus
 ---
 
 ## 更新日志
+
+### v2.11 (2026-04-17) - Anime status 字段支持
+
+- **Anime 数据库结构更新**
+  - 新增 `status` 字段（默认值：'draft'）
+  - 与 Novel 数据结构保持一致
+  - 支持状态过滤查询
+
+- **新增接口**
+  - `GET /getAnimeById` - 根据 anime_id 查询单个 anime 信息
+  - 响应包含 status 字段
+
+- **接口更新**
+  - `POST /createAnime` - 支持传入 `status` 参数
+  - `GET /getAnimesByWorkId` - 支持 `status` 参数过滤
+
+- **测试更新**
+  - 新增 `test_get_anime_by_id` 测试用例
+  - 所有 anime 测试通过（12/12）
+
+### v2.10 (2026-04-17) - generateVideo 时长控制
+
+- **generateVideo 接口新增时长控制**
+  - 新增 `duration` 参数控制视频时长（秒）
+  - 时长范围：3-20 秒
+  - 默认值：5 秒
+  - 超出 20 秒自动限制为 20 秒，低于 3 秒自动调整为 3 秒
+  - 支持前端上传文件（multipart/form-data）
+
+- **generateMultiImageVideo 接口新增时长控制**
+  - 新增 `duration` 参数控制视频时长（秒）
+  - 时长范围：3-20 秒
+  - 默认值：5 秒
+  - 时长平均分配到每个图片片段
+
+- **图片上传方式扩展**
+  - 支持前端上传文件（multipart/form-data）
+  - 支持前端回传 URL
+  - 支持 asset_id 从数据库获取
 
 ### v2.9 (2026-04-16) - generateVideo 接口 asset_id 支持
 

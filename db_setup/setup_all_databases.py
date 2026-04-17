@@ -28,7 +28,8 @@ def get_mysql_config():
         'table_users': os.getenv('MYSQL_TABLE_USERS', 'users'),
         'table_assets': os.getenv('MYSQL_TABLE_ASSETS', 'assets'),
         'table_works': os.getenv('MYSQL_TABLE_WORKS', 'works'),
-        'table_chapters': os.getenv('MYSQL_TABLE_CHAPTERS', 'chapters'),
+        'table_novels': os.getenv('MYSQL_TABLE_NOVELS', 'novels'),
+        'table_anime': os.getenv('MYSQL_TABLE_ANIME', 'anime'),
         'table_token_blacklist': os.getenv('MYSQL_TABLE_TOKEN_BLACKLIST', 'token_blacklist')
     }
 
@@ -140,27 +141,46 @@ def create_mysql_tables(config):
             """)
             print(f"[OK] 表 {config['table_works']} 已确保存在")
 
-            # 4. 创建 chapters 表
+            # 4. 创建 novels 表（原 chapters 表）
             cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {config['table_chapters']} (
-                    chapter_id CHAR(36) PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS {config['table_novels']} (
+                    novel_id CHAR(36) PRIMARY KEY,
                     work_id CHAR(36) NOT NULL,
                     author_id CHAR(36) NOT NULL,
-                    chapter_number INT NOT NULL,
-                    chapter_title VARCHAR(255) NOT NULL,
+                    novel_number INT NOT NULL,
+                    novel_title VARCHAR(255) NOT NULL,
                     content LONGTEXT,
                     status VARCHAR(50) DEFAULT 'draft',
                     word_count INT DEFAULT 0,
                     description TEXT,
+                    notes TEXT,
                     created_at DATETIME NOT NULL,
                     updated_at DATETIME NOT NULL,
                     INDEX idx_work_id (work_id),
-                    INDEX idx_chapter_number (work_id, chapter_number)
+                    INDEX idx_novel_number (work_id, novel_number)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
             """)
-            print(f"[OK] 表 {config['table_chapters']} 已确保存在")
+            print(f"[OK] 表 {config['table_novels']} 已确保存在")
 
-            # 5. 创建 token_blacklist 表（JWT 令牌黑名单）
+            # 5. 创建 anime 表
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {config['table_anime']} (
+                    anime_id CHAR(36) PRIMARY KEY,
+                    work_id CHAR(36) NOT NULL,
+                    author_id CHAR(36) NOT NULL,
+                    anime_number INT NOT NULL,
+                    description TEXT,
+                    notes TEXT,
+                    status VARCHAR(50) DEFAULT 'draft',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    INDEX idx_work_id (work_id),
+                    INDEX idx_anime_number (work_id, anime_number)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            print(f"[OK] 表 {config['table_anime']} 已确保存在")
+
+            # 6. 创建 token_blacklist 表（JWT 令牌黑名单）
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {config['table_token_blacklist']} (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -207,11 +227,15 @@ def setup_mongo_database(config):
         asset_collection = db[config['asset_collection']]
         work_collection = db[config['work_collection']]
         conversation_collection = db[config['conversation_collection']]
+        novel_collection = db['novel_details']
+        anime_collection = db['anime_details']
 
         print(f"[OK] 集合准备完成:")
         print(f"  - {config['asset_collection']} (资产数据)")
         print(f"  - {config['work_collection']} (作品详情)")
         print(f"  - {config['conversation_collection']} (对话历史)")
+        print(f"  - novel_details (小说详情)")
+        print(f"  - anime_details (动画详情)")
 
         # 创建索引
         try:
@@ -229,6 +253,20 @@ def setup_mongo_database(config):
 
             work_collection.create_index([('work_id', 1), ('chapter_ids', 1)], name='work_id_chapter_ids_idx')
             print(f"[OK] 已创建索引：{config['work_collection']}.work_id + chapter_ids (复合)")
+
+            # novel_details 集合索引
+            novel_collection.create_index('novel_id', unique=True, name='novel_id_unique')
+            print(f"[OK] 已创建索引：novel_details.novel_id (唯一)")
+
+            novel_collection.create_index('work_id', name='work_id_idx')
+            print(f"[OK] 已创建索引：novel_details.work_id")
+
+            # anime_details 集合索引
+            anime_collection.create_index('anime_id', unique=True, name='anime_id_unique')
+            print(f"[OK] 已创建索引：anime_details.anime_id (唯一)")
+
+            anime_collection.create_index('work_id', name='work_id_idx')
+            print(f"[OK] 已创建索引：anime_details.work_id")
 
             # conversation_history 集合索引
             conversation_collection.create_index('session_id', unique=True, name='session_id_unique')
@@ -250,11 +288,15 @@ def setup_mongo_database(config):
         asset_count = asset_collection.count_documents({})
         work_count = work_collection.count_documents({})
         conversation_count = conversation_collection.count_documents({})
+        novel_count = novel_collection.count_documents({})
+        anime_count = anime_collection.count_documents({})
 
         print(f"[STATS] 当前数据统计:")
         print(f"  - {config['asset_collection']}: {asset_count} 个文档")
         print(f"  - {config['work_collection']}: {work_count} 个文档")
         print(f"  - {config['conversation_collection']}: {conversation_count} 个文档")
+        print(f"  - novel_details: {novel_count} 个文档")
+        print(f"  - anime_details: {anime_count} 个文档")
 
         return True
 
@@ -286,8 +328,8 @@ def main():
     print(f"  数据库：{mysql_config['database']}")
     print(f"  字符集：{mysql_config['charset']}")
     print(f"  表：{mysql_config['table_users']}, {mysql_config['table_assets']}, "
-          f"{mysql_config['table_works']}, {mysql_config['table_chapters']}, "
-          f"{mysql_config['table_token_blacklist']}")
+          f"{mysql_config['table_works']}, {mysql_config['table_novels']}, "
+          f"{mysql_config['table_anime']}, {mysql_config['table_token_blacklist']}")
 
     # MongoDB 配置
     mongo_config = get_mongo_config()

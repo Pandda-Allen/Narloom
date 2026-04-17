@@ -106,13 +106,15 @@ def create_anime():
     anime_number = data['anime_number']
     description = data.get('description', '')
     notes = data.get('notes', '')
+    status = data.get('status', 'draft')  # 默认状态为 draft
 
     anime = anime_service.insert_anime(
         work_id=work_id,
         author_id=author_id,
         anime_number=anime_number,
         description=description,
-        notes=notes
+        notes=notes,
+        status=status
     )
 
     # 添加到 MongoDB work_details
@@ -135,6 +137,7 @@ def get_animes_by_work_id():
     """根据 work_id 获取 anime 镜头列表"""
     validate_required_fields(request.args, ['work_id'])
     work_id = request.args.get('work_id')
+    status = request.args.get('status', None)  # 可选的 status 过滤
 
     try:
         limit = int(request.args.get('limit', 100))
@@ -142,12 +145,31 @@ def get_animes_by_work_id():
     except ValueError:
         return error_response('Invalid limit or offset', 400)
 
-    animes = anime_service.fetch_anime_by_work_id(work_id, limit, offset)
+    animes = anime_service.fetch_anime_by_work_id(work_id, status, limit, offset)
     return api_response(
         success=True,
         message='Animes fetched successfully',
         data=animes,
         count=len(animes)
+    )
+
+
+@anime_bp.route('/getAnimeById', methods=['GET'])
+@handle_errors
+def get_anime_by_id():
+    """根据 anime_id 获取单个 anime 镜头信息"""
+    validate_required_fields(request.args, ['anime_id'])
+    anime_id = request.args.get('anime_id')
+
+    anime = anime_service.fetch_anime_by_id(anime_id)
+    if not anime:
+        return error_response('Anime not found', 404)
+
+    return api_response(11
+        success=True,
+        message='Anime fetched successfully',
+        data=anime,
+        count=1
     )
 
 
@@ -168,6 +190,17 @@ def generate_video_endpoint():
     style = data.get('style', '')
     creativity = data.get('creativity', 0.3)
     ratio = data.get('ratio', '16:9')
+    duration = data.get('duration', 5)  # 默认 5 秒
+
+    # 限制时长在 3-20 秒之间
+    try:
+        duration = float(duration)
+        if duration < 3:
+            duration = 3
+        elif duration > 20:
+            duration = 20
+    except (TypeError, ValueError):
+        duration = 5
 
     # 获取 anime 信息
     anime = anime_service.fetch_anime_by_id(anime_id)
@@ -187,7 +220,8 @@ def generate_video_endpoint():
     try:
         video_result = video_generation_service.generate_single_image_anime(
             image_url=picture_url,
-            prompt=prompt
+            prompt=prompt,
+            duration=duration
         )
 
         # 更新 MongoDB 中的 anime_details
@@ -305,6 +339,17 @@ def generate_multi_image_video_endpoint():
     anime_id = data['anime_id']
     user_id = data['user_id']
     prompt = data.get('prompt', '')
+    duration = data.get('duration', 5)  # 默认 5 秒
+
+    # 限制时长在 3-20 秒之间
+    try:
+        duration = float(duration)
+        if duration < 3:
+            duration = 3
+        elif duration > 20:
+            duration = 20
+    except (TypeError, ValueError):
+        duration = 5
 
     # 获取 anime 信息
     anime = anime_service.fetch_anime_by_id(anime_id)
@@ -319,7 +364,10 @@ def generate_multi_image_video_endpoint():
 
     # 调用视频生成服务
     try:
-        video_result = video_generation_service.merge_videos(picture_urls)
+        video_result = video_generation_service.merge_videos(
+            video_urls=picture_urls,
+            transition_duration=duration / len(picture_urls)  # 平均分配时长
+        )
 
         # 更新 MongoDB 中的 anime_details
         for i, pic_id in enumerate(picture_ids):

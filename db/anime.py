@@ -12,7 +12,7 @@ class AnimeService:
     """Anime 镜头数据访问类（原 ShotService）"""
 
     def insert_anime(self, work_id: str, author_id: str, anime_number: int,
-                    description: str = '', notes: str = '') -> Dict:
+                    description: str = '', notes: str = '', status: str = 'draft') -> Dict:
         """插入 anime 镜头记录"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
@@ -22,11 +22,11 @@ class AnimeService:
 
         with conn.cursor() as cursor:
             sql = f"""
-                INSERT INTO {table} (anime_id, work_id, author_id, anime_number, description, notes, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO {table} (anime_id, work_id, author_id, anime_number, description, notes, status, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             cursor.execute(sql, (anime_id, work_id, author_id, anime_number,
-                                 description, notes, now, now))
+                                 description, notes, status, now, now))
             conn.commit()
 
         return {
@@ -36,6 +36,7 @@ class AnimeService:
             "anime_number": anime_number,
             "description": description,
             "notes": notes,
+            "status": status,
             "created_at": now.strftime("%Y-%m-%d %H:%M:%S"),
             "updated_at": now.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -90,18 +91,23 @@ class AnimeService:
             cursor.execute(f"SELECT * FROM {table} WHERE anime_id = %s", (anime_id,))
             row = cursor.fetchone()
             if row:
+                row['anime_number'] = row['anime_number']
                 row['created_at'] = row['created_at'].strftime("%Y-%m-%d %H:%M:%S")
                 row['updated_at'] = row['updated_at'].strftime("%Y-%m-%d %H:%M:%S")
             return row
 
-    def fetch_anime_by_work_id(self, work_id: str, limit: int = 100,
-                               offset: int = 0) -> List[Dict]:
+    def fetch_anime_by_work_id(self, work_id: str, status: Optional[str] = None,
+                               limit: int = 100, offset: int = 0) -> List[Dict]:
         """根据作品 ID 获取 anime 镜头列表"""
         conn = mysql_base_service._ensure_connection()
         table = mysql_base_service._validate_table_name(
             mysql_base_service._get_config('MYSQL_TABLE_ANIME', 'anime'))
         conditions = ["work_id = %s"]
         params = [work_id]
+
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
 
         sql = f"SELECT * FROM {table} WHERE {' AND '.join(conditions)} ORDER BY anime_number ASC LIMIT %s OFFSET %s"
         params.extend([limit, offset])

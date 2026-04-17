@@ -277,10 +277,58 @@ def test_create_anime():
         assert 'anime_id' in result['data'], f"Response should contain anime_id: {result}"
         assert result['data']['anime_number'] == 1, f"Anime number mismatch: {result}"
         assert result['data']['work_id'] == work_id, f"Work ID mismatch: {result}"
+        assert result['data']['status'] == 'draft', f"Default status should be 'draft': {result}"
 
         anime_id = result['data']['anime_id']
         print(f"  Created anime: {anime_id}")
         return anime_id, work_id
+
+
+def test_get_anime_by_id():
+    """测试根据 anime_id 获取单个动画镜头"""
+    app = create_app()
+
+    # 先创建作品和镜头
+    with app.test_client() as client:
+        work_data = {
+            'author_id': TEST_AUTHOR_ID,
+            'title': 'Test Work for Get Anime',
+            'work_type': 'anime'
+        }
+        work_response = client.post(
+            '/rest/v1/work/createWork',
+            data=json.dumps(work_data),
+            content_type='application/json'
+        )
+        work_id = json.loads(work_response.data)['data']['work_id']
+
+        anime_data = {
+            'work_id': work_id,
+            'author_id': TEST_AUTHOR_ID,
+            'anime_number': 1,
+            'description': 'Test anime for get by id',
+            'notes': 'Test notes',
+            'status': 'draft'
+        }
+        create_response = client.post(
+            '/rest/v1/anime/createAnime',
+            data=json.dumps(anime_data),
+            content_type='application/json'
+        )
+        anime_id = json.loads(create_response.data)['data']['anime_id']
+
+    # 测试获取镜头
+    with app.test_client() as client:
+        response = client.get(f'/rest/v1/anime/getAnimeById?anime_id={anime_id}')
+
+        assert response.status_code == 200, f"Get anime failed: {response.data}"
+        result = json.loads(response.data)
+
+        assert result['status'] == 'success', f"Response status should be 'success': {result}"
+        assert result['data']['anime_id'] == anime_id, f"Anime ID mismatch: {result}"
+        assert result['data']['status'] == 'draft', f"Status should be 'draft': {result}"
+
+        print(f"  Retrieved anime by id: {anime_id}")
 
 
 def test_get_animes_by_work_id():
