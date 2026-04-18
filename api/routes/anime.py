@@ -165,7 +165,7 @@ def get_anime_by_id():
     if not anime:
         return error_response('Anime not found', 404)
 
-    return api_response(11
+    return api_response(
         success=True,
         message='Anime fetched successfully',
         data=anime,
